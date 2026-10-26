@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import SignIn from './screens/SignIn';
 import ProjectList from './screens/ProjectList';
 import ResourceInstall from './screens/ResourceInstall';
@@ -8,6 +8,7 @@ import CheckScreen from './screens/CheckScreen';
 import { door43Api, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
+import { inTauri, tauriTokenStore } from './door43/tauriTokenStore';
 import { pankosmiaSource } from './project/pankosmiaSource';
 import { tsEngine } from './engine/tsEngine';
 import type { Tool } from './engine/CheckingEngine';
@@ -22,12 +23,24 @@ type Screen =
 
 export default function App() {
   const api = useMemo(() => door43Api(), []);
-  const store = useMemo(() => memoryTokenStore(), []);
+  const store = useMemo(() => (inTauri() ? tauriTokenStore() : memoryTokenStore()), []);
   const source = useMemo(() => pankosmiaSource(), []);
   const engine = tsEngine;
   const host = new URL(DCS_SERVER).host;
   const [session, setSession] = useState<Door43Session | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
+
+  // A token kept from an earlier session signs the checker in again; a revoked one is forgotten.
+  useEffect(() => {
+    store.read().then(async (token) => {
+      if (!token) return;
+      try {
+        setSession({ username: await api.userOf(token), token });
+      } catch {
+        await store.forget();
+      }
+    });
+  }, [api, store]);
 
   if (!session) return <SignIn api={api} store={store} onSignedIn={setSession} />;
   switch (screen.name) {

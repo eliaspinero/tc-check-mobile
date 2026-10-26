@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Clone or download the sources (it's done for you at below)
+# You should most definitely read the ANDROID notes to see the exact command. A lot of the scripts online are outdated for the 1.X branches
+# You basically need to set the ANDROID_NDK_HOME variable for this script to work
+# Generating the dylibs was failing for me, so disabled it for now
+
+
+
+
+#set -v
+set -ex
+export ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk/27.0.12077973"
+export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+export OPENSSL_VERSION="openssl-3.5.7"
+rm -rf ${OPENSSL_VERSION}
+# Sometimes this link breaks, you can manually download the sources yourself
+curl -L --output "${OPENSSL_VERSION}.tar.gz" "https://github.com/openssl/openssl/releases/download/${OPENSSL_VERSION}/${OPENSSL_VERSION}.tar.gz"
+tar xfz "${OPENSSL_VERSION}.tar.gz"
+
+PROJECT_HOME=`pwd`
+PATH_ORG=$PATH
+OUTPUT_DIR="libs"
+
+# Clean output:
+rm -rf $OUTPUT_DIR
+mkdir $OUTPUT_DIR
+
+build_android_clang() {
+
+	echo ""
+	echo "----- Build libcrypto & libssl.so for "$1" -----"
+	echo ""
+
+	ARCHITECTURE=$1
+	TOOLCHAIN=$2
+	stl="libc++"
+
+	# Set toolchain
+	export TOOLCHAIN_ROOT=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+	export SYSROOT=$TOOLCHAIN_ROOT/sysroot
+	export CC=${TOOLCHAIN}21-clang
+	export CXX=${TOOLCHAIN}21-clang++
+	export CXXFLAGS="-fPIC"
+	export CPPFLAGS="-DANDROID -fPIC"
+
+	export PATH=$TOOLCHAIN_ROOT/bin:$SYSROOT/usr/local/bin:$PATH
+
+	cd "${OPENSSL_VERSION}"
+
+	perl Configure $ARCHITECTURE no-asm no-shared -D__ANDROID_API__=21
+
+	make clean
+	# Apply patch that fixes the armcap instruction
+	# Linux version
+	sed -e '/[.]hidden.*OPENSSL_armcap_P/d; /[.]extern.*OPENSSL_armcap_P/ {p; s/extern/hidden/ }' -i -- crypto/*arm*pl crypto/*/asm/*arm*pl
+	# macOS version
+	# sed -E -i '' -e '/[.]hidden.*OPENSSL_armcap_P/d' -e '/[.]extern.*OPENSSL_armcap_P/ {p; s/extern/hidden/; }' crypto/*arm*pl crypto/*/asm/*arm*pl
+
+	make
+
+	mkdir -p ../$OUTPUT_DIR/${ARCHITECTURE}/lib
+	mkdir -p ../$OUTPUT_DIR/${ARCHITECTURE}/include
+
+	cp libcrypto.a ../$OUTPUT_DIR/${ARCHITECTURE}/lib/libcrypto.a
+	cp libssl.a ../$OUTPUT_DIR/${ARCHITECTURE}/lib/libssl.a
+
+	cp -R include/openssl ../$OUTPUT_DIR/${ARCHITECTURE}/include
+
+	cd ..
+}
+
+build_android_clang "android-arm" "armv7a-linux-androideabi"
+build_android_clang "android-x86" "i686-linux-android"
+build_android_clang "android-x86_64" "x86_64-linux-android"
+build_android_clang "android-arm64" "aarch64-linux-android"

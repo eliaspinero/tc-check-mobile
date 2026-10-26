@@ -1,0 +1,18 @@
+{
+  "pages": {
+    "core-dashboard": {
+      "go_to_documents": {
+        "en": "Open library",
+        "fr": "Librarie"
+      },
+      "download_from_internet": {
+        "en": "Open downloads",
+        "fr": "Ouvrir Téléchargement"
+      },
+      "create_content": {
+        "en": "New",
+        "fr": "Nouveau"
+      }
+    }
+  }
+}
