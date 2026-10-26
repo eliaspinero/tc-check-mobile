@@ -13,14 +13,23 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
   const [error, setError] = useState<string | null>(null);
   // One install pass per mount: React's development double effect must not start two downloads of one pin.
   const started = useRef(false);
+  // A download keeps going after the checker leaves this screen; what it finds then must not move them.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const run = useCallback(
     async (pins: ResourcePin[]) => {
       const next: Row[] = pins.map((pin) => ({ pin, state: 'waiting' }));
-      setRows([...next]);
+      const show = () => mounted.current && setRows([...next]);
+      show();
       for (const row of next) {
         row.state = 'downloading';
-        setRows([...next]);
+        show();
         try {
           await installPin(row.pin, source);
           row.state = 'installed';
@@ -28,9 +37,9 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
           row.state = e instanceof DownloadStopped ? 'stopped' : 'failed';
           row.message = (e as Error).message;
         }
-        setRows([...next]);
+        show();
       }
-      if (next.every((r) => r.state === 'installed')) onReady();
+      if (mounted.current && next.every((r) => r.state === 'installed')) onReady();
     },
     [source, onReady],
   );
@@ -40,12 +49,14 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
     started.current = true;
     (async () => {
       const resources = await source.readResources(repoPath);
+      if (!mounted.current) return;
       if (!resources) return onBack();
       const pins = await missingPins(resources, source);
+      if (!mounted.current) return;
       if (pins.length === 0) return onReady();
       await source.enableNet();
       await run(pins);
-    })().catch((e: Error) => setError(e.message));
+    })().catch((e: Error) => mounted.current && setError(e.message));
   }, [repoPath, source, onReady, onBack, run]);
 
   const retry = () => rows && run(rows.filter((r) => r.state !== 'installed').map((r) => r.pin));
@@ -79,10 +90,11 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
       ))}
       {stopped && (
         <>
-          <p>This resource isn't on this device yet. Connect to the internet and try again, or open another project.</p>
+          <p>This resource isn't on this device yet. Connect to the internet and try again, or continue: checks and panes that need it say so.</p>
           <button className="primary" onClick={retry}>
             Try again
           </button>
+          <button onClick={onReady}>Continue</button>
         </>
       )}
       <button onClick={onBack}>Back</button>

@@ -30,10 +30,19 @@ const ownerRepo = (repoPath: string): { owner: string; repo: string } => {
   return { owner: (parts[parts.length - 2] ?? '').toLowerCase(), repo: (parts[parts.length - 1] ?? '').toLowerCase() };
 };
 
-/** Where a pin installs: tC4's canonical owner-qualified path. */
-export const installPathOf = (pin: ResourcePin): string => {
+const canonicalPathOf = (pin: ResourcePin): string => {
   const { owner, repo } = ownerRepo(pin.repoPath);
   return `_local_/_sideloaded_/${owner ? `${owner}--${repo}` : repo}`;
+};
+/** The commit-qualified path, as tC4 state.jsx installs a second commit of a repo: `<canonical>--<sha12>`. */
+const shaPathOf = (pin: ResourcePin): string => `${canonicalPathOf(pin)}--${pin.sha.slice(0, 12)}`;
+
+/** Where a pin installs. A pin with a release tag takes tC4's canonical owner-qualified path while it is
+ * free; when another commit of the repo holds it, or the pin names only a commit (its archive declares no
+ * revision to identify it by later), the commit-qualified path, whose name carries the sha. */
+export const installPathOf = (pin: ResourcePin, local: string[]): string => {
+  const canonical = canonicalPathOf(pin);
+  return pin.version && !local.some((p) => p.toLowerCase() === canonical) ? canonical : shaPathOf(pin);
 };
 
 /** The commit a burrito's metadata declares for its DCS identity, or null. */
@@ -42,11 +51,15 @@ export const declaredRevision = (meta: unknown): string | null => {
   return Object.values(dcs)[0]?.revision ?? null;
 };
 
-/** The local path that holds this exact pin (same repo, declared revision = pinned sha), or null.
- * tC4's rig seed installs at `<repo>`, the app at `<owner>--<repo>`; both count. */
+/** The local path that holds this exact pin, or null. The commit-qualified path names the sha, so it is
+ * this pin by its name. Otherwise the repo's canonical path (`<owner>--<repo>`, or `<repo>` as tC4's rig
+ * seed installs) holds it when its declared revision is the pinned sha. */
 export const installedPathOf = async (pin: ResourcePin, local: string[], source: ProjectSource): Promise<string | null> => {
-  const { owner, repo } = ownerRepo(pin.repoPath);
-  const candidates = [`_local_/_sideloaded_/${owner}--${repo}`, `_local_/_sideloaded_/${repo}`];
+  const lower = local.map((p) => p.toLowerCase());
+  const byName = local[lower.indexOf(shaPathOf(pin))];
+  if (byName) return byName;
+  const { repo } = ownerRepo(pin.repoPath);
+  const candidates = [canonicalPathOf(pin), `_local_/_sideloaded_/${repo}`];
   for (const path of local.filter((p) => candidates.includes(p.toLowerCase()))) {
     try {
       if (declaredRevision(await source.readMetadata(path)) === pin.sha) return path;
@@ -124,9 +137,35 @@ export class DownloadStopped extends Error {
   }
 }
 
-/** Download one pin, verify its commit against the pinned sha, install it. Installs nothing on any failure. */
+/** The release tag that names a commit, read page by page from the DCS tags API (tC4 tagForCommitSha),
+ * or null when no tag names it or DCS cannot be asked. */
+const tagForSha = async (pin: ResourcePin, fetchFn: typeof fetch): Promise<string | null> => {
+  const path = hostPath(pin.repoPath);
+  const slash = path.indexOf('/');
+  const api = `https://${path.slice(0, slash)}/api/v1/repos/${path.slice(slash + 1)}/tags`;
+  for (let page = 1; page <= 20; page++) {
+    let rows: Array<{ name?: string; commit?: { sha?: string } }>;
+    try {
+      const res = await fetchFn(`${api}?limit=50&page=${page}`);
+      if (!res.ok) return null;
+      rows = await res.json();
+    } catch {
+      return null;
+    }
+    const hit = rows.find((t) => t.commit?.sha === pin.sha);
+    if (hit?.name) return hit.name;
+    if (rows.length === 0) return null;
+  }
+  return null;
+};
+
+/** Download one pin, verify its commit against the pinned sha, install it. Installs nothing on any failure.
+ * A pin with a tag fetches the tag's sb-zip export; a sha-only pin first looks for the tag that names its
+ * commit, because a resource-container repo is a burrito only in that export; only an untagged commit
+ * falls back to the Gitea archive, verified by the commit Gitea writes in its zip comment. */
 export const installPin = async (pin: ResourcePin, source: ProjectSource, fetchFn: typeof fetch = (...a) => fetch(...a)): Promise<string> => {
-  const url = pin.version ? sbZipUrl({ ...pin, version: pin.version }) : archiveZipUrl(pin);
+  const tag = pin.version ?? (await tagForSha(pin, fetchFn));
+  const url = tag ? sbZipUrl({ ...pin, version: tag }) : archiveZipUrl(pin);
   let bytes: Uint8Array;
   try {
     const res = await fetchFn(url);
@@ -137,10 +176,10 @@ export const installPin = async (pin: ResourcePin, source: ProjectSource, fetchF
     throw e;
   }
   const { files, metadata } = unwrap(bytes);
-  const revision = pin.version ? declaredRevision(metadata) : zipArchiveComment(bytes);
+  const revision = tag ? declaredRevision(metadata) : zipArchiveComment(bytes);
   if (revision !== pin.sha)
     throw new Error(`${pin.repoPath} ${pin.version ?? ''} is commit ${revision?.slice(0, 12) ?? 'unknown'}…, but the project pins ${pin.sha.slice(0, 12)}… — not installed`);
-  const target = installPathOf(pin);
+  const target = installPathOf(pin, await source.listLocal());
   await source.installResourceZip(target, rezip(files));
   return target;
 };

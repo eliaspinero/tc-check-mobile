@@ -23,9 +23,20 @@ export default function ProjectList({ api, source, session, host, onOpen }: Prop
   const [busy, setBusy] = useState<string | null>(null);
   const [notTc, setNotTc] = useState(false);
 
+  // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
-    api.listRepos(session).then(setRepos, (e: Error) => setError(e.message));
-  }, [api, session]);
+    api.listRepos(session).then(setRepos, async (e: Error) => {
+      setError(`${e.message}. Showing the projects on this device.`);
+      const prefix = `${host}/`.toLowerCase();
+      const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
+      setRepos(
+        local.map((p) => {
+          const [owner, name] = p.slice(prefix.length).split('/');
+          return { owner, name, description: '' };
+        }),
+      );
+    });
+  }, [api, session, source, host]);
 
   const open = async (repo: Door43Repo) => {
     setBusy(`${repo.owner}/${repo.name}`);

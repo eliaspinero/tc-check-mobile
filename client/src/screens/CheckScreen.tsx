@@ -48,15 +48,21 @@ function Help({ item, tool, ctx, source }: { item: CheckItem; tool: Tool; ctx: C
   useEffect(() => {
     setArticle(null);
     if (tool !== 'translationWords' || !ctx.twPath) return;
+    // A swipe moves on before a slow read answers: an answer for a check no longer shown is dropped.
+    let current = true;
     source.readText(ctx.twPath, `payload/${category}/${c.groupId}.md`).then(
       (md) => {
+        if (!current) return;
         const lines = md.split(/\r?\n/);
         const title = (lines.find((l) => l.startsWith('# ')) ?? `# ${c.groupId}`).slice(2).trim();
         const body = lines.filter((l) => !l.startsWith('# ')).map((l) => l.replace(/^#+\s*/, ''));
         setArticle({ title, body: body.join('\n').trim() });
       },
-      () => setArticle({ title: c.groupId, body: 'This article is not in the installed translationWords resource.' }),
+      () => current && setArticle({ title: c.groupId, body: 'This article is not in the installed translationWords resource.' }),
     );
+    return () => {
+      current = false;
+    };
   }, [tool, ctx.twPath, category, c.groupId, source]);
 
   if (tool === 'translationNotes')

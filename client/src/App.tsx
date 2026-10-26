@@ -5,7 +5,7 @@ import ResourceInstall from './screens/ResourceInstall';
 import BookPicker from './screens/BookPicker';
 import CheckList from './screens/CheckList';
 import CheckScreen from './screens/CheckScreen';
-import { door43Api, type Door43Session } from './door43/door43Api';
+import { Door43ApiError, door43Api, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
 import { inTauri, tauriTokenStore } from './door43/tauriTokenStore';
@@ -30,14 +30,16 @@ export default function App() {
   const [session, setSession] = useState<Door43Session | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
 
-  // A token kept from an earlier session signs the checker in again; a revoked one is forgotten.
+  // A token kept from an earlier session signs the checker in again. Only Door43's own refusal (401/403)
+  // forgets it; with no internet the checker keeps working on the projects already on this device.
   useEffect(() => {
     store.read().then(async (token) => {
       if (!token) return;
       try {
         setSession({ username: await api.userOf(token), token });
-      } catch {
-        await store.forget();
+      } catch (e) {
+        if (e instanceof Door43ApiError && (e.status === 401 || e.status === 403)) await store.forget();
+        else setSession({ username: '', token });
       }
     });
   }, [api, store]);

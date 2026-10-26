@@ -86,3 +86,28 @@ export const commitAll = async (repoPath: string, message: string): Promise<void
   const body = (await res.json()) as { is_good?: boolean; reason?: string };
   if (!body.is_good) throw new Error(`rig commit ${repoPath}: ${body.reason}`);
 };
+
+/** en_ust v89: a second real release the rig does not hold. */
+export const UST_V89 = { repoPath: 'git.door43.org/unfoldingWord/en_ust', version: 'v89', sha: '37ec223166bbd73fb55abc7840be8310c0fee7f2', flavor: 'scripture/textTranslation' };
+/** Where a second sha of en_ust installs while the canonical path holds another (tC4 state.jsx: --<sha12>). */
+export const suffixInstall = (sha: string): string => `${UST_V90_INSTALL}--${sha.slice(0, 12)}`;
+
+/** A copy of the sample project whose UST pane pin is replaced by `pin` (leave out `version` for a sha-only pin). */
+export const placeProjectWithUst = async (target: string, pin: Record<string, unknown>): Promise<void> => {
+  await placeRepo(SAMPLE_PROJECT, target);
+  const resources = JSON.parse(await readIngredient(target, 'checking/resources.json')) as { extraScripture: Array<Record<string, unknown>> };
+  resources.extraScripture = resources.extraScripture.map((p) => (String(p.repoPath).endsWith('/en_ust') ? { id: p.id, ...pin } : p));
+  await writeIngredient(target, 'checking/resources.json', JSON.stringify(resources, null, 2));
+};
+
+/** A copy of the sample project whose pins carry no `books` (projects pinned before tC4 D41). */
+export const placeProjectWithoutPinBooks = async (target: string): Promise<void> => {
+  await placeRepo(SAMPLE_PROJECT, target);
+  const strip = (o: unknown): unknown => {
+    if (Array.isArray(o)) return o.map(strip);
+    if (o && typeof o === 'object') return Object.fromEntries(Object.entries(o).filter(([k]) => k !== 'books').map(([k, v]) => [k, strip(v)]));
+    return o;
+  };
+  const resources = strip(JSON.parse(await readIngredient(target, 'checking/resources.json')));
+  await writeIngredient(target, 'checking/resources.json', JSON.stringify(resources, null, 2));
+};
