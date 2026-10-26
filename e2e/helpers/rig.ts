@@ -33,3 +33,38 @@ export const placeRepo = async (src: string, target: string): Promise<void> => {
 export const SAMPLE_PROJECT = '_local_/_local_/sample_burrito';
 /** A repo on the rig that is a burrito but not a tC4 project (no checking/resources.json). */
 export const PLAIN_REPO = '_local_/_sideloaded_/en_tw';
+
+/** Test setup only: write one ingredient of a rig repo (the app itself never writes in slice 1). */
+export const writeIngredient = async (repoPath: string, ipath: string, text: string): Promise<void> => {
+  const res = await fetch(`${RIG_URL}/api/burrito/ingredient/raw/${repoPath}?ipath=${encodeURIComponent(ipath)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload: text }),
+  });
+  const body = (await res.json()) as { is_good?: boolean; reason?: string };
+  if (!body.is_good) throw new Error(`rig write ${ipath}: ${body.reason}`);
+};
+
+export const readIngredient = async (repoPath: string, ipath: string): Promise<string> =>
+  (await fetch(`${RIG_URL}/api/burrito/ingredient/raw/${repoPath}?ipath=${encodeURIComponent(ipath)}`)).text();
+
+export const deleteRepoIfPresent = async (repoPath: string): Promise<void> => {
+  if ((await listLocal()).includes(repoPath)) await post(`/git/delete/${repoPath}`);
+};
+
+/** en_ust v90: a real release the rig does not hold (tC4's seed installs v91). 9.5 MB. */
+export const UST_V90 = {
+  repoPath: 'git.door43.org/unfoldingWord/en_ust',
+  version: 'v90',
+  sha: 'e254f81aa7668a30fef2de929453a3550d4524a2',
+  flavor: 'scripture/textTranslation',
+};
+export const UST_V90_INSTALL = '_local_/_sideloaded_/unfoldingword--en_ust';
+
+/** A copy of the sample project whose UST pane pin is en_ust v90, so exactly one pin is missing. */
+export const placeProjectMissingUstV90 = async (target: string): Promise<void> => {
+  await placeRepo(SAMPLE_PROJECT, target);
+  const resources = JSON.parse(await readIngredient(target, 'checking/resources.json')) as { extraScripture: Array<Record<string, unknown>> };
+  resources.extraScripture = resources.extraScripture.map((p) => (String(p.repoPath).endsWith('/en_ust') ? { ...p, ...UST_V90 } : p));
+  await writeIngredient(target, 'checking/resources.json', JSON.stringify(resources, null, 2));
+};

@@ -4,11 +4,11 @@
 import type { CheckItem, ProjectDeriveResult, VerseObject } from '../checking/derive';
 import type { SchemeDoc, SchemeName } from '../checking/versification';
 import type { Coverage, Resolution, Tool } from '../checking/resolve';
-import type { ResourcesFile } from '../checking/types';
+import type { ResourcePin, ResourcesFile } from '../checking/types';
 import type { Selection } from '../checking/selections';
 import type { SourceToken } from '../checking/sourceHighlight';
 
-export type { CheckItem, Coverage, Resolution, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
+export type { CheckItem, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
 
 export interface DeriveInput {
   tsv: string;
