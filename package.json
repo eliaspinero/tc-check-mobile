@@ -7,11 +7,17 @@
     "dev": "vite --config client/vite.config.ts",
     "build": "vite build --config client/vite.config.ts",
     "typecheck": "tsc --noEmit -p client/tsconfig.json",
-    "journeys": "playwright test -c e2e/playwright.config.ts"
+    "journeys": "playwright test -c e2e/playwright.config.ts",
+    "check:provenance": "node scripts/check-provenance.mjs",
+    "lint": "eslint client/src"
   },
   "dependencies": {
+    "bible-reference-range": "^1.1.1",
+    "proskomma-core": "^0.11.3",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "string-punctuation-tokenizer": "^2.0.0",
+    "usfm-js": "^3.4.3"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
@@ -19,7 +25,9 @@
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.7.0",
+    "eslint": "^9.39.4",
     "typescript": "5.6.3",
+    "typescript-eslint": "^8.46.2",
     "vite": "6.4.1"
   }
 }
