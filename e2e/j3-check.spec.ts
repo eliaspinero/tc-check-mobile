@@ -35,3 +35,23 @@ test('j3: TIT tN lists its checks too', async ({ page, context }) => {
   expect(decided).toBe(await decidedIn('translationNotes', 'TIT'));
   expect(total).toBeGreaterThan(0);
 });
+
+test('j3: the check screen highlights the quote in ULT and UST and the stored selection in the target', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await placeRepo(SAMPLE_PROJECT, PROJECT);
+  await openProject(page, context, 'sample_burrito');
+  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  await page.getByTestId('check-row').filter({ hasText: /^1:1 · god(Checked)?$/ }).first().click();
+  await expect(page.getByTestId('check-header')).toHaveText(/^TIT 1:1 · tW · \d+ \/ \d+$/);
+  await expect(page.getByTestId('help-title')).toHaveText('Dios');
+  await expect(page.getByTestId('help-body')).toContainText('Definición');
+  await expect(page.getByTestId('help-body')).not.toContainText('#');
+  for (const pane of ['ULT', 'UST']) {
+    const hl = page.getByTestId(`pane-${pane}`).locator('[data-hl]');
+    await expect(hl.first()).toBeVisible();
+    expect((await hl.allTextContents()).join(' ')).toContain('God');
+  }
+  await expect(page.getByTestId('target').locator('[data-sel]')).toHaveText(['Dios']);
+  await expect(page.getByTestId('target')).toContainText('Pablo, siervo de Dios y apóstol de Jesucristo,');
+  await page.screenshot({ path: 'test-results/j3-check-screen.png', fullPage: true });
+});

@@ -4,6 +4,7 @@ import ProjectList from './screens/ProjectList';
 import ResourceInstall from './screens/ResourceInstall';
 import BookPicker from './screens/BookPicker';
 import CheckList from './screens/CheckList';
+import CheckScreen from './screens/CheckScreen';
 import { door43Api, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
@@ -63,10 +64,17 @@ export default function App() {
       );
     case 'check':
       return (
-        <main className="screen">
-          <h1>Check</h1>
-          <button onClick={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool })}>Back</button>
-        </main>
+        <CheckScreen
+          repoPath={screen.repoPath}
+          book={screen.book}
+          tool={screen.tool}
+          session={screen.session}
+          index={screen.index}
+          source={source}
+          engine={engine}
+          onIndex={(index) => setScreen({ ...screen, index })}
+          onBack={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool })}
+        />
       );
     default:
       return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => setScreen({ name: 'install', repoPath })} />;

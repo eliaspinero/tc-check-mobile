@@ -1,4 +1,4 @@
-import { deriveForProject, mergeAndReattach, progressOf, twArticlesOf } from '../checking/derive';
+import { deriveForProject, deriveTargetBible, mergeAndReattach, progressOf, twArticlesOf } from '../checking/derive';
 import { oldTwlPin, resolveToolBook } from '../checking/resolve';
 import { matchQuote, tokenizeVerse } from '../checking/sourceHighlight';
 import { targetWords, tokenIndicesFromSelections } from '../checking/selections';
@@ -27,6 +27,8 @@ export const tsEngine: CheckingEngine = {
   },
   progress: (items) => progressOf(items),
   twArticles: (meta) => twArticlesOf(meta),
+  parseBook: (usfm) => deriveTargetBible(usfm),
+  verseText: (verse) => tokenizeVerse(verse).map((t) => t.text).join('').trim(),
   sourceTokens: (verse, quote, occurrence) => {
     const tokens = tokenizeVerse(verse);
     return { tokens, highlighted: [...matchQuote(tokens, quote, occurrence)].sort((a, b) => a - b) };
