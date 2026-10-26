@@ -2,38 +2,73 @@ import { useMemo, useState } from 'react';
 import SignIn from './screens/SignIn';
 import ProjectList from './screens/ProjectList';
 import ResourceInstall from './screens/ResourceInstall';
+import BookPicker from './screens/BookPicker';
+import CheckList from './screens/CheckList';
 import { door43Api, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
 import { pankosmiaSource } from './project/pankosmiaSource';
+import { tsEngine } from './engine/tsEngine';
+import type { Tool } from './engine/CheckingEngine';
+import type { Session } from './session/loadSession';
 
-type Screen = { name: 'projects' } | { name: 'install'; repoPath: string } | { name: 'books'; repoPath: string };
+type Screen =
+  | { name: 'projects' }
+  | { name: 'install'; repoPath: string }
+  | { name: 'books'; repoPath: string }
+  | { name: 'list'; repoPath: string; book: string; tool: Tool }
+  | { name: 'check'; repoPath: string; book: string; tool: Tool; session: Session; index: number };
 
 export default function App() {
   const api = useMemo(() => door43Api(), []);
   const store = useMemo(() => memoryTokenStore(), []);
   const source = useMemo(() => pankosmiaSource(), []);
+  const engine = tsEngine;
   const host = new URL(DCS_SERVER).host;
   const [session, setSession] = useState<Door43Session | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
 
   if (!session) return <SignIn api={api} store={store} onSignedIn={setSession} />;
-  if (screen.name === 'install')
-    return (
-      <ResourceInstall
-        key={screen.repoPath}
-        repoPath={screen.repoPath}
-        source={source}
-        onReady={() => setScreen({ name: 'books', repoPath: screen.repoPath })}
-        onBack={() => setScreen({ name: 'projects' })}
-      />
-    );
-  if (screen.name === 'books')
-    return (
-      <main className="screen">
-        <h1>Choose a book</h1>
-        <button onClick={() => setScreen({ name: 'projects' })}>Back</button>
-      </main>
-    );
-  return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => setScreen({ name: 'install', repoPath })} />;
+  switch (screen.name) {
+    case 'install':
+      return (
+        <ResourceInstall
+          key={screen.repoPath}
+          repoPath={screen.repoPath}
+          source={source}
+          onReady={() => setScreen({ name: 'books', repoPath: screen.repoPath })}
+          onBack={() => setScreen({ name: 'projects' })}
+        />
+      );
+    case 'books':
+      return (
+        <BookPicker
+          repoPath={screen.repoPath}
+          source={source}
+          onPick={(book, tool) => setScreen({ name: 'list', repoPath: screen.repoPath, book, tool })}
+          onBack={() => setScreen({ name: 'projects' })}
+        />
+      );
+    case 'list':
+      return (
+        <CheckList
+          repoPath={screen.repoPath}
+          book={screen.book}
+          tool={screen.tool}
+          source={source}
+          engine={engine}
+          onOpen={(s, index) => setScreen({ ...screen, name: 'check', session: s, index })}
+          onBack={() => setScreen({ name: 'books', repoPath: screen.repoPath })}
+        />
+      );
+    case 'check':
+      return (
+        <main className="screen">
+          <h1>Check</h1>
+          <button onClick={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool })}>Back</button>
+        </main>
+      );
+    default:
+      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => setScreen({ name: 'install', repoPath })} />;
+  }
 }
