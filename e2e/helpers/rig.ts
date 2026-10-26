@@ -68,3 +68,21 @@ export const placeProjectMissingUstV90 = async (target: string): Promise<void> =
   resources.extraScripture = resources.extraScripture.map((p) => (String(p.repoPath).endsWith('/en_ust') ? { ...p, ...UST_V90 } : p));
   await writeIngredient(target, 'checking/resources.json', JSON.stringify(resources, null, 2));
 };
+
+/** The rig's repos directory on disk (tC4 dev-env/state/work/repos), for a file:// remote. Needs TC4_DIR. */
+export const rigReposDir = (): string | null =>
+  process.env.TC4_DIR ? `${process.env.TC4_DIR.replace(/\\/g, '/').replace(/\/+$/, '')}/dev-env/state/work/repos` : null;
+export const NEEDS_TC4_DIR = 'needs TC4_DIR (a translationCore4 checkout whose dev-env runs the rig) for a file:// origin';
+
+export const addOrigin = async (repoPath: string, url: string): Promise<void> =>
+  post(`/git/remote/add/${repoPath}?remote_name=origin&remote_url=${encodeURIComponent(url)}`);
+
+export const commitAll = async (repoPath: string, message: string): Promise<void> => {
+  const res = await fetch(`${RIG_URL}/api/git/add-and-commit/${repoPath}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commit_message: message }),
+  });
+  const body = (await res.json()) as { is_good?: boolean; reason?: string };
+  if (!body.is_good) throw new Error(`rig commit ${repoPath}: ${body.reason}`);
+};

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, readIngredient, rigUp } from './helpers/rig';
+import { pathToFileURL } from 'node:url';
+import { NEEDS_RIG, NEEDS_TC4_DIR, SAMPLE_PROJECT, addOrigin, commitAll, placeRepo, readIngredient, rigReposDir, rigUp, writeIngredient } from './helpers/rig';
 import { openProject } from './helpers/session';
 
 const PROJECT = 'qa.door43.org/checker1/sample_burrito';
@@ -54,4 +55,35 @@ test('j3: the check screen highlights the quote in ULT and UST and the stored se
   await expect(page.getByTestId('target').locator('[data-sel]')).toHaveText(['Dios']);
   await expect(page.getByTestId('target')).toContainText('Pablo, siervo de Dios y apóstol de Jesucristo,');
   await page.screenshot({ path: 'test-results/j3-check-screen.png', fullPage: true });
+});
+
+test('j3: Sync pulls Door43 main and the list shows the new decision', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  const repos = rigReposDir();
+  test.skip(!repos, NEEDS_TC4_DIR);
+  const upstream = 'qa.door43.org/checker1/sync_upstream';
+  const project = 'qa.door43.org/checker1/sync_project';
+  await placeRepo(SAMPLE_PROJECT, upstream);
+  await placeRepo(SAMPLE_PROJECT, project);
+  await addOrigin(project, pathToFileURL(`${repos}/${upstream}`).href);
+
+  await openProject(page, context, 'sync_project');
+  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  const before = Number(((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/)![0]);
+
+  // A teammate's decision lands on Door43 main: Paul in 1:1 (TWL row trr8) selected as "Pablo".
+  const file = JSON.parse(await readIngredient(upstream, 'checking/translationWords/TIT.json')) as { decisions: Array<Record<string, unknown>> };
+  const template = file.decisions[0] as { contextId: Record<string, unknown> };
+  file.decisions.push({
+    ...template,
+    contextId: { ...template.contextId, checkId: 'trr8', groupId: 'paul', quote: 'Παῦλος', quoteString: 'Παῦλος', occurrence: 1 },
+    category: 'names',
+    selections: [{ text: 'Pablo', occurrence: 1, occurrences: 1 }],
+    status: 'valid',
+  });
+  await writeIngredient(upstream, 'checking/translationWords/TIT.json', JSON.stringify(file, null, 2));
+  await commitAll(upstream, 'teammate decision');
+
+  await page.getByRole('button', { name: 'Sync' }).click();
+  await expect(page.getByTestId("progress")).toHaveText(new RegExp(`^${before + 1} of [0-9]+ checked$`));
 });

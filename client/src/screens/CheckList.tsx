@@ -28,6 +28,7 @@ type Props = {
 export default function CheckList({ repoPath, tool, book, source, engine, onOpen, onBack }: Props) {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -35,11 +36,31 @@ export default function CheckList({ repoPath, tool, book, source, engine, onOpen
   }, [repoPath, tool, book, source, engine]);
   useEffect(load, [load]);
 
+  // Slice 1 is read only: Sync brings Door43 main into this copy and reloads the list. It writes nothing.
+  const sync = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      await source.enableNet();
+      await source.pull(repoPath);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <main className="screen">
-      <h1>
-        {book} · {tool}
-      </h1>
+      <div className="check-top">
+        <h1>
+          {book} · {tool}
+        </h1>
+        <button onClick={sync} disabled={syncing}>
+          {syncing ? 'Syncing…' : 'Sync'}
+        </button>
+      </div>
       {error && (
         <p className="error" role="alert">
           {error}
