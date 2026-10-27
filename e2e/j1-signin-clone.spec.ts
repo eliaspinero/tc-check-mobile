@@ -24,7 +24,7 @@ test('j1: a wrong password shows Door43 message', async ({ page, context }) => {
   await page.getByLabel('Username or email').fill(USER.username);
   await page.getByLabel('Password').fill('wrong');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByText('invalid username, password or token')).toBeVisible();
+  await expect(page.getByText('Door43 did not accept that username and password.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sign in to Door43' })).toBeVisible();
 });
 

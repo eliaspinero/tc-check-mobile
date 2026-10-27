@@ -3,6 +3,7 @@ import type { Door43Api, Door43Repo, Door43Session } from '../door43/door43Api';
 import type { ProjectSource } from '../project/ProjectSource';
 import { t } from '../i18n';
 import TopBar from './TopBar';
+import { door43ErrorText } from './door43Error';
 
 type Props = {
   api: Door43Api;
@@ -45,8 +46,8 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
-    api.listRepos(session).then(setRepos, async (e: Error) => {
-      setError(t('offlineProjects', { error: e.message }));
+    api.listRepos(session).then(setRepos, async (e: unknown) => {
+      setError(t('offlineProjects', { error: door43ErrorText(e) }));
       const prefix = `${host}/`.toLowerCase();
       const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
       setRepos(

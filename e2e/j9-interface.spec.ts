@@ -174,4 +174,35 @@ test.describe('on a phone in Spanish', () => {
     await expect(page.getByRole('banner').getByRole('button', { name: 'Atrás' })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   });
+
+  test('j9: Door43 errors read in Spanish: a wrong password, no internet, and the project list offline', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await placeRepo(SAMPLE_PROJECT, PROJECT);
+    await fakeDoor43(context, { user: USER, repos: [{ owner: USER.username, name: 'sample_burrito' }] });
+    // Registered after the fake, so it answers first: offline drops every call, reposOffline only the repo list.
+    let offline = false;
+    let reposOffline = false;
+    await context.route('https://qa.door43.org/api/v1/**', (route) =>
+      offline || (reposOffline && route.request().url().includes('/user/repos')) ? route.abort('internetdisconnected') : route.fallback(),
+    );
+    await page.goto(CLIENT_URL);
+    await page.getByLabel('Usuario o correo').fill(USER.username);
+    await page.getByLabel('Contraseña').fill('wrong');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await expect(page.getByRole('alert')).toHaveText('Door43 no aceptó ese usuario y contraseña.');
+
+    offline = true;
+    await page.getByLabel('Contraseña').fill(USER.password);
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await expect(page.getByRole('alert')).toHaveText('No se puede conectar con Door43. Revisa tu conexión a internet.');
+
+    // Signed in, then the list of repositories cannot be fetched: the projects on this device show, in Spanish.
+    offline = false;
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await page.getByRole('button', { name: /^sample_burrito/ }).click();
+    reposOffline = true;
+    await page.getByRole('banner').getByRole('button', { name: 'Atrás' }).click();
+    await expect(page.getByRole('alert')).toHaveText('No se puede conectar con Door43. Revisa tu conexión a internet. Se muestran los proyectos de este dispositivo.');
+    await expect(page.getByRole('button', { name: /^sample_burrito/ })).toBeVisible();
+  });
 });

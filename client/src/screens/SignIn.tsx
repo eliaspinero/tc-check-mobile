@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Door43Api, Door43Session } from '../door43/door43Api';
 import type { TokenStore } from '../door43/tokenStore';
 import { t } from '../i18n';
+import { door43ErrorText } from './door43Error';
 
 export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; store: TokenStore; onSignedIn: (s: Door43Session) => void }) {
   const [login, setLogin] = useState('');
@@ -23,7 +24,7 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
       await store.keep(session.token);
       onSignedIn(session);
     } catch (err) {
-      setError((err as Error).message);
+      setError(door43ErrorText(err, true));
     } finally {
       setBusy(false);
     }
