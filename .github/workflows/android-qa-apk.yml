@@ -44,6 +44,9 @@ jobs:
           java-version: 17
 
       - uses: android-actions/setup-android@v3
+        with:
+          # Its default list includes `tools`, which the SDK repository no longer serves.
+          packages: platform-tools
 
       - name: Install the Android platform, build tools and NDK
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;${NDK_VERSION}"
