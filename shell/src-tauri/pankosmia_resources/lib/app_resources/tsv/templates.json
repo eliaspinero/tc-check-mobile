@@ -1,0 +1,13 @@
+{
+	"tq": {
+		"label": "translationQuestions",
+		"flavor": "x-bcvquestions"
+	},
+	"tn": {
+		"label": "translationNotes",
+		"flavor": "x-bcvnotes"
+		},
+	"sq": {
+		"label": "studyQuestions",
+		"flavor": "x-bcvquestions"	}
+}

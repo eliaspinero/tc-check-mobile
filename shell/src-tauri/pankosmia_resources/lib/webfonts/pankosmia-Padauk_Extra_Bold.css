@@ -1,0 +1,54 @@
+/* Copyright (c) 2021, SIL International (https://www.sil.org/) with Reserved Font Names "Padauk", "Namkio" and "Deemawso".*/
+/* This Font Software is licensed under the SIL Open Font License, Version 1.1. See https://openfontlicense.org/ .*/
+
+/* normal */
+@font-face {
+  font-family: 'Pankosmia-Padauk Extra Bold';
+  font-style: normal;
+  font-weight: normal; /* This is really Semi Bold */
+  src: url(./padauk/Padauk-SemiBold.woff2);
+  unicode-range: U+1000-109F, U+AA60-AA7F, U+A9E0-A9FF, U+116D0-116FF, U+A900-A92F;
+  font-display: swap;
+  font-feature-settings: %%FONTFEATURES%%;
+  -moz-font-feature-settings: %%FONTFEATURES%%;
+  -webkit-font-feature-settings: %%FONTFEATURES%%;
+}
+
+/* italic */
+@font-face {
+  font-family: 'Pankosmia-Padauk Extra Bold';
+  font-style: italic; /* Doesn't exist */
+  font-weight: normal; /* This is really Semi Bold */
+  src: url(./padauk/Padauk-SemiBold.woff2);
+  unicode-range: U+1000-109F, U+AA60-AA7F, U+A9E0-A9FF, U+116D0-116FF, U+A900-A92F;
+  font-display: swap;
+  font-feature-settings: %%FONTFEATURES%%;
+  -moz-font-feature-settings: %%FONTFEATURES%%;
+  -webkit-font-feature-settings: %%FONTFEATURES%%;
+}
+
+/* bold */
+@font-face {
+  font-family: 'Pankosmia-Padauk Extra Bold';
+  font-style: normal;
+  font-weight: bold; /* This is really Extra Bold */
+  src: url(./padauk/Padauk-ExtraBold.woff2);
+  unicode-range: U+1000-109F, U+AA60-AA7F, U+A9E0-A9FF, U+116D0-116FF, U+A900-A92F;
+  font-display: swap;
+  font-feature-settings: %%FONTFEATURES%%;
+  -moz-font-feature-settings: %%FONTFEATURES%%;
+  -webkit-font-feature-settings: %%FONTFEATURES%%;
+}
+
+/* bold italic */
+@font-face {
+  font-family: 'Pankosmia-Padauk Extra Bold';
+  font-style: italic; /* Doesn't exist */
+  font-weight: bold; /* This is really Extra Bold */
+  src: url(./padauk/Padauk-ExtraBold.woff2);
+  unicode-range: U+1000-109F, U+AA60-AA7F, U+A9E0-A9FF, U+116D0-116FF, U+A900-A92F;
+  font-display: swap;
+  font-feature-settings: %%FONTFEATURES%%;
+  -moz-font-feature-settings: %%FONTFEATURES%%;
+  -webkit-font-feature-settings: %%FONTFEATURES%%;
+}

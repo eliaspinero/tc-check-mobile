@@ -1,0 +1,441 @@
+@page {
+    size: 595pt 842pt;
+    margin-bottom: 50pt;
+    margin-top: 60pt;
+    @footnote {
+        float: bottom;
+        margin-top: 10pt;
+    }
+}
+@page :first {
+    margin-top: 40pt;
+}
+@page :left {
+    margin-left: 72pt;
+    margin-right: 44pt;
+}
+@page :right {
+    margin-left: 44pt;
+    margin-right: 72pt;
+}
+
+
+body {
+    font-size: 12pt;
+    text-align: justify;
+    text-align-last: start;
+}
+
+section.chapters {
+    column-fill: balance;
+    page-break-before: avoid;
+    page-break-inside: auto;
+    -webkit-column-break-inside: auto;
+}
+
+p {
+    margin: 0;
+    padding: 0;
+}
+
+
+h1 {
+    page-break-after: avoid;
+}
+
+h1, h2, h3, h4, .iot {
+    margin-top: 0;
+    margin-bottom: 0;
+    break-after: avoid;
+    -webkit-column-break-after: avoid;
+}
+
+::footnote-call {
+    font-style: italic;
+    font-size: 0.5em;
+    vertical-align: top;
+    padding-right: 1pt;
+}
+
+::footnote-marker {
+    font-weight: normal;
+}
+
+.glossary_star {
+    color: #777;
+}
+
+.bcv_note {
+    font-size: 10pt;
+    float: footnote;
+}
+
+.bcv_note::footnote-call {
+    content: none;
+}
+
+.bcv_note::footnote-marker {
+    content: none;
+}
+
+/* paras CSS format : */
+.paras_default {
+    color: secondary;
+}
+.b {
+    min-height: 14pt;
+}
+.d {
+    font-style: italic;
+}
+.f {
+    font-size: 10pt;
+    float: footnote;
+}
+/*
+.hanging_graft {
+}
+*/
+.ib {
+    min-height: 14pt;
+}
+.ili {
+    display: list-item;
+    list-style-type: disc;
+    list-style-position: inside;
+    padding-right: 24pt;
+    text-indent: -12pt;
+    break-inside: avoid;
+}
+.ili2 {
+    display: list-item;
+    list-style-type: circle;
+    list-style-position: inside;
+    padding-right: 36pt;
+    text-indent: -12pt;
+    break-inside: avoid;
+}
+.ili3 {
+    display: list-item;
+    list-style-position: inside;
+    list-style-type: circle;
+    padding-right: 48pt;
+    text-indent: -12pt;
+    break-inside: avoid;
+}
+/*
+.im {
+}
+*/
+.imt {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 24pt;
+    text-align: center;
+}
+.imt2 {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 20pt;
+    text-align: center;
+}
+.imt3 {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 16pt;
+    text-align: center;
+}
+.imt4 {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 14pt;
+    text-align: center;
+}
+.ip {
+    text-indent: 12pt;
+}
+.ipi {
+    padding-right: 12pt;
+    text-indent: 12pt;
+}
+.io {
+    padding-right: 12pt;
+    text-align: right;
+}
+.iot {
+    font-weight: bold;
+    font-size: 14pt;
+    text-align: right;
+}
+.is {
+    font-style: italic;
+    font-size: 20pt;
+    break-after: avoid;
+}
+.is2 {
+    font-style: italic;
+    font-size: 16pt;
+    break-after: avoid;
+}
+.is3 {
+    font-style: italic;
+    font-size: 14pt;
+    break-after: avoid;
+}
+.li {
+    display: list-item;
+    list-style-position: inside;
+    list-style-type: disc;
+    padding-right: 24pt;
+    text-indent: -12pt;
+}
+.li2 {
+    display: list-item;
+    list-style-position: inside;
+    list-style-type: circle;
+    padding-right: 36pt;
+    text-indent: -12pt;
+}
+.li3 {
+    display: list-item;
+    list-style-position: inside;
+    list-style-type: circle;
+    padding-right: 48pt;
+    text-indent: -12pt;
+}
+.m {
+    break-before: avoid-column;
+}
+.mi {
+    padding-right: 12pt;
+}
+.mr {
+    font-size: 14pt;
+    font-style: italic;
+}
+.ms {
+    font-size: 20pt;
+    font-weight: bold;
+}
+.ms2 {
+    font-size: 16pt;
+    font-weight: bold;
+}
+.ms3 {
+    font-size: 14pt;
+    font-weight: bold;
+}
+.mt {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 24pt;
+    text-align: center;
+}
+.mt2 {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 20pt;
+    text-align: center;
+}
+.mt3 {
+    font-weight: normal;
+    font-style: italic;
+    font-size: 16pt;
+    text-align: center;
+}
+/*
+.nb {
+}
+*/
+.p {
+    text-indent: 12pt;
+    break-inside: auto;
+}
+.pc {
+    text-align: center;
+}
+.pi {
+    padding-right: 12pt;
+    text-indent: 12pt;
+}
+.pi2 {
+    padding-right: 24pt;
+    text-indent: 12pt;
+}
+.pi3 {
+    padding-right: 36pt;
+    text-indent: 12pt;
+}
+.q {
+    padding-right: 12pt;
+    text-align: right;
+    font-size: 12pt;
+}
+.q2 {
+    padding-right: 24pt;
+    text-align: right;
+    font-size: 12pt;
+}
+.q3 {
+    padding-right: 36pt;
+    text-align: right;
+    font-size: 12pt;
+}
+.q4 {
+    padding-right: 48pt;
+    text-align: right;
+    font-size: 12pt;
+}
+.qa {
+    font-weight: bold;
+    font-size: 24pt;
+}
+.qr {
+    text-align: right;
+}
+.r {
+    font-weight: bold;
+}
+.s {
+    font-style: italic;
+    font-size: 20pt;
+    text-align: right;
+}
+.s2 {
+    font-style: italic;
+    font-size: 16pt;
+    text-align: right;
+}
+.s3 {
+    font-style: italic;
+    font-size: 14pt;
+    text-align: right;
+}
+sr {
+    font-size: 16pt;
+    text-align: right;
+}
+/*
+.tr {
+}
+*/
+.x {
+    font-size: 10pt;
+    float: footnote;
+}
+/* marks CSS format : */
+/*
+.marks_default {
+}
+*/
+.marks_chapter_label {
+    font-size: 40pt;
+    float: right;
+    padding: 0;
+    margin: 0 0 0 6pt;
+    text-indent: 0;
+    vertical-align: middle;
+}
+p:has(.marks_chapter_label) {
+    text-indent: 0;
+}
+.marks_verses_label {
+    font-weight: bold;
+    font-size: 70%;
+    margin-right: 2pt;
+    vertical-align: baseline;
+}
+/* wrappers CSS format : */
+/*
+.wrappers_default {
+}
+*/
+.wrappers_usfm_add {
+    font-style: italic;
+}
+.wrappers_usfm_bd {
+    font-weight: bold;
+}
+.wrappers_usfm_bdit {
+    font-weight: bold;
+    font-style: italic;
+}
+.wrappers_usfm_bk {
+    font-style: italic;
+}
+/*
+.wrappers_chapter {
+}
+.wrappers_usfm_fl {
+}
+.wrappers_usfm_fm {
+}
+*/
+.wrappers_usfm_fq {
+    font-style: italic;
+}
+.wrappers_usfm_fqa {
+    font-style: italic;
+}
+.wrappers_usfm_fr {
+    font-weight: bold;
+}
+/*
+.wrappers_usfm_ft {
+}
+*/
+.wrappers_usfm_it {
+    font-style: italic;
+}
+.wrappers_usfm_k {
+    font-weight: bold;
+}
+.wrappers_usfm_nd {
+    font-weight: bold;
+    font-size: smaller;
+    text-transform: uppercase;
+}
+.wrappers_usfm_qs {
+    font-style: italic;
+}
+.wrappers_usfm_pn {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: #777;
+    text-decoration-thickness: 1pt;
+}
+.wrappers_usfm_png {
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-decoration-color: #777;
+    text-decoration-thickness: 1pt;
+}
+.wrappers_usfm_qt {
+    font-style: italic;
+}
+.wrappers_usfm_sc {
+    font-size: smaller;
+    text-transform: uppercase;
+}
+/*
+.wrappers_usfm_sls {
+}
+*/
+.wrappers_usfm_tl {
+    font-style: italic;
+}
+/*
+.wrappers_verses {
+}
+.wrappers_usfm_wj {
+}
+.wrappers_usfm_xk {
+}
+*/
+.wrappers_usfm_xo {
+    font-weight: bold;
+}
+/*
+.wrappers_usfm_xt {
+}
+*/
