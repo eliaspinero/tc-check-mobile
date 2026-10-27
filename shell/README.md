@@ -37,17 +37,32 @@ names `pkg_version` `0.18.15`.
 
 ## Build the Android APK
 
-Needs a JDK 17, the Android SDK with NDK `27.0.12077973`, the Rust Android targets, and OpenSSL
-for Android (`src-tauri/src/openssl/make_openssl.bsh`, see the template's notes below).
+The easy way needs nothing on your computer. The workflow `.github/workflows/android-qa-apk.yml`
+builds the test APK on GitHub for every pull request, and you can also start it by hand from the
+Actions tab. Open the run and download the `tc-check-qa-apk` artifact. It is a zip that holds
+`tc-check-qa-<commit>.apk`, an arm64 build whose client talks to `qa.door43.org`. Each run signs
+with a key made for that run only, so uninstall the old build before you install a newer one.
+
+To build on your own machine you need a JDK 17, the Android SDK with NDK `27.0.12077973`, the
+Rust Android targets (`dev-env/install-android-toolchain.ps1` installs them on Windows), and
+OpenSSL for Android. Build OpenSSL from `src-tauri/src/openssl`, on Linux or WSL:
+
+```bash
+ANDROID_NDK_HOME="<sdk>/ndk/27.0.12077973" bash make_openssl.bsh android-arm64
+```
+
+Then, from `shell/`, after `node scripts/build-client-into-shell.mjs --qa` at the repository root:
 
 ```bash
 npm run android:tauri -- android init
-npm run android:tauri -- android build --apk
+node ../scripts/prepare-android.mjs
+npm run android:tauri -- android build --apk --target aarch64
 ```
 
-Android 9 and later block plain `http://` in the WebView. The local server is `http://127.0.0.1`,
-so the generated Android project needs the network security config the template describes:
-cleartext allowed for `127.0.0.1` and `localhost` only.
+Android 9 and later block plain `http://` in the WebView, and the local server is
+`http://127.0.0.1:8000`. `prepare-android.mjs` adds the network security config in
+`shell/android/`, which allows cleartext for `127.0.0.1` and `localhost` only. Run it after every
+`android init`, because init recreates the git-ignored `src-tauri/gen/android`.
 
-The APK must be signed (`keytool` and `apksigner`); `build-android.sh` is the template's script.
-Never commit a keystore.
+The APK must be signed (`keytool` and `apksigner`); the workflow shows how, and
+`build-android.sh` is the template's script. Never commit a keystore.

@@ -1,0 +1,107 @@
+# Builds the test APK (client bound to qa.door43.org) on GitHub, so testing on a phone needs no
+# Android toolchain on anyone's computer. The signed APK is attached to the run as an artifact.
+# It is signed with a key made for this run only: to install a newer build, uninstall the old one.
+name: Android QA APK
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-qa-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: 27.0.12077973
+  OPENSSL_VERSION: openssl-3.5.7
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            shell/package-lock.json
+
+      - name: Build the QA client into the shell
+        run: |
+          npm ci
+          node scripts/build-client-into-shell.mjs --qa
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install the Android platform, build tools and NDK
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;${NDK_VERSION}"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: shell/src-tauri
+
+      - name: Cache OpenSSL for Android
+        id: openssl
+        uses: actions/cache@v4
+        with:
+          path: shell/src-tauri/src/openssl/libs
+          key: openssl-android-arm64-${{ env.OPENSSL_VERSION }}-ndk-${{ env.NDK_VERSION }}
+
+      - name: Build OpenSSL for Android (arm64)
+        if: steps.openssl.outputs.cache-hit != 'true'
+        working-directory: shell/src-tauri/src/openssl
+        run: ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" bash make_openssl.bsh android-arm64
+
+      - name: Generate the Android project
+        working-directory: shell
+        run: |
+          npm ci
+          export NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
+          npm run android:tauri -- android init --ci
+          node ../scripts/prepare-android.mjs
+
+      - name: Build the release APK (arm64)
+        working-directory: shell
+        run: |
+          export NDK_HOME="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
+          npm run android:tauri -- android build --apk --target aarch64 --ci
+
+      - name: Sign the APK with a key for this run
+        working-directory: shell
+        run: |
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*-release-unsigned.apk' -type f | head -n 1)
+          if [ -z "$apk" ]; then echo "no unsigned release APK was built"; exit 1; fi
+          pass=$(openssl rand -hex 16)
+          keytool -genkeypair -keystore run.keystore -alias run -keyalg RSA -keysize 2048 -validity 30 \
+            -storepass "$pass" -keypass "$pass" -dname "CN=tC Check QA test build"
+          tools="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          "$tools/zipalign" -f -p 4 "$apk" aligned.apk
+          mkdir -p apk
+          "$tools/apksigner" sign --ks run.keystore --ks-key-alias run --ks-pass "pass:$pass" \
+            --out "apk/tc-check-qa-${GITHUB_SHA::7}.apk" aligned.apk
+          "$tools/apksigner" verify "apk/tc-check-qa-${GITHUB_SHA::7}.apk"
+          rm -f run.keystore aligned.apk
+          ls -lh apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tc-check-qa-apk
+          path: shell/apk/*.apk
+          if-no-files-found: error
+          retention-days: 14

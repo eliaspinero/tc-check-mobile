@@ -10,7 +10,8 @@
 
 #set -v
 set -ex
-export ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk/27.0.12077973"
+# An NDK already named in the environment (CI) wins; otherwise the template's default path.
+export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$HOME/Android/Sdk/ndk/27.0.12077973}"
 export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
 export OPENSSL_VERSION="openssl-3.5.7"
 rm -rf ${OPENSSL_VERSION}
@@ -70,7 +71,15 @@ build_android_clang() {
 	cd ..
 }
 
-build_android_clang "android-arm" "armv7a-linux-androideabi"
-build_android_clang "android-x86" "i686-linux-android"
-build_android_clang "android-x86_64" "x86_64-linux-android"
-build_android_clang "android-arm64" "aarch64-linux-android"
+# Usage: make_openssl.bsh [android-arm] [android-x86] [android-x86_64] [android-arm64]; no argument builds all four.
+ARCHS=("$@")
+[ ${#ARCHS[@]} -eq 0 ] && ARCHS=(android-arm android-x86 android-x86_64 android-arm64)
+for ARCH in "${ARCHS[@]}"; do
+	case "$ARCH" in
+		android-arm) build_android_clang "android-arm" "armv7a-linux-androideabi" ;;
+		android-x86) build_android_clang "android-x86" "i686-linux-android" ;;
+		android-x86_64) build_android_clang "android-x86_64" "x86_64-linux-android" ;;
+		android-arm64) build_android_clang "android-arm64" "aarch64-linux-android" ;;
+		*) echo "unknown architecture $ARCH"; exit 1 ;;
+	esac
+done
