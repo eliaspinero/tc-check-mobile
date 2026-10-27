@@ -79,8 +79,8 @@ test('j8: a target that bridges verses (\\v 1-2) shows its text and the stored s
   expect(bridged).not.toContain('\\v 2 con la esperanza');
   await writeIngredient(project, 'TIT.usfm', bridged);
   await openProject(page, context, 'sample_bridge');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^1:1 · god(Checked)?$/ }).first().click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
   await expect(page.getByTestId('target')).toContainText('Pablo, siervo de Dios y apóstol de Jesucristo,');
   await expect(page.getByTestId('target').locator('[data-sel]')).toHaveText(['Dios']);
 });
@@ -92,7 +92,7 @@ test('j8: a project in another versification (org) says so instead of listing ch
   const org = await (await fetch(`${RIG_URL}/api/content-utils/versification/org`)).text();
   await writeIngredient(project, 'vrs.json', org);
   await openProject(page, context, 'sample_org');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
   await expect(page.getByText('This project numbers its verses with the org versification.')).toBeVisible();
   await expect(page.getByTestId('check-row')).toHaveCount(0);
 });
@@ -101,6 +101,6 @@ test('j8: the sample project, whose vrs.json is the default eng scheme, still li
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeRepo(SAMPLE_PROJECT, 'qa.door43.org/checker1/sample_burrito');
   await openProject(page, context, 'sample_burrito');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
   await expect(page.getByTestId('check-row').first()).toBeVisible();
 });

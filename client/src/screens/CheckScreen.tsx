@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { CheckingEngine, CheckItem, DerivedBook, Selection, Tool } from '../engine/CheckingEngine';
+import type { ArticleBlock, CheckingEngine, CheckItem, DerivedBook, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import type { Session } from '../session/loadSession';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
+import { t } from '../i18n';
+import { bookName, toolName } from '../i18n/books';
 import { useSwipe } from './useSwipe';
+import TopBar from './TopBar';
+import ChapterGrid from './ChapterGrid';
+import Markdown from './Markdown';
+import { chapterStates, refOf } from './chapters';
 
 type Props = {
   repoPath: string;
@@ -38,9 +44,9 @@ function TargetVerse({ text, words, selected }: { text: string; words: string[];
   return <>{parts}</>;
 }
 
-/** The help above the sources: the tW article's title and first lines, or the tN note. */
-function Help({ item, tool, ctx, source }: { item: CheckItem; tool: Tool; ctx: CheckContext; source: ProjectSource }) {
-  const [article, setArticle] = useState<{ title: string; body: string } | null>(null);
+/** The help above the sources: the tW article or the tN note, closed to its title and first block. */
+function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool; ctx: CheckContext; source: ProjectSource; engine: CheckingEngine }) {
+  const [article, setArticle] = useState<{ title: string; blocks: ArticleBlock[] } | null>(null);
   const [open, setOpen] = useState(false);
   const c = item.contextId as { groupId: string; occurrenceNote?: string };
   const category = (item.category as string | undefined) ?? 'kt';
@@ -54,31 +60,32 @@ function Help({ item, tool, ctx, source }: { item: CheckItem; tool: Tool; ctx: C
       (md) => {
         if (!current) return;
         const lines = md.split(/\r?\n/);
-        const title = (lines.find((l) => l.startsWith('# ')) ?? `# ${c.groupId}`).slice(2).trim();
-        const body = lines.filter((l) => !l.startsWith('# ')).map((l) => l.replace(/^#+\s*/, ''));
-        setArticle({ title, body: body.join('\n').trim() });
+        const first = lines.findIndex((l) => l.startsWith('# '));
+        const title = first >= 0 ? lines[first].slice(2).trim() : c.groupId;
+        setArticle({ title, blocks: engine.articleBlocks(lines.filter((_, i) => i !== first).join('\n')) });
       },
-      () => current && setArticle({ title: c.groupId, body: 'This article is not in the installed translationWords resource.' }),
+      () => current && setArticle({ title: c.groupId, blocks: engine.articleBlocks(t('articleMissing')) }),
     );
     return () => {
       current = false;
     };
-  }, [tool, ctx.twPath, category, c.groupId, source]);
+  }, [tool, ctx.twPath, category, c.groupId, source, engine]);
 
-  if (tool === 'translationNotes')
-    return (
-      <section className="help">
-        <p data-testid="help-title" className="help-title">{c.groupId}</p>
-        <p data-testid="help-body" className={open ? '' : 'clamp'} onClick={() => setOpen(!open)}>{c.occurrenceNote}</p>
-      </section>
-    );
+  const title = tool === 'translationNotes' ? c.groupId : (article?.title ?? c.groupId);
+  const blocks = tool === 'translationNotes' ? engine.articleBlocks(c.occurrenceNote ?? '') : (article?.blocks ?? []);
+  // Closed, the help shows its first block; a heading first shows the paragraph under it.
+  const preview = blocks.find((b) => b.kind !== 'h');
+
   return (
-    <section className="help">
-      <p data-testid="help-title" className="help-title">{article?.title ?? c.groupId}</p>
-      {article && (
-        <p data-testid="help-body" className={open ? 'pre' : 'clamp pre'} onClick={() => setOpen(!open)}>
-          {article.body}
-        </p>
+    <section className="help" data-testid="help">
+      <button className="help-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span data-testid="help-title" className="help-title">{title}</span>
+        <span className="chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {blocks.length > 0 && (
+        <div data-testid="help-body" className={open ? 'help-body' : 'help-body clamp'}>
+          <Markdown blocks={open ? blocks : preview ? [preview] : []} />
+        </div>
       )}
     </section>
   );
@@ -87,18 +94,18 @@ function Help({ item, tool, ctx, source }: { item: CheckItem; tool: Tool; ctx: C
 export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onBack }: Props) {
   const [ctx, setCtx] = useState<CheckContext | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const total = session.items.length;
-  const swipe = useSwipe(
-    () => index < total - 1 && onIndex(index + 1),
-    () => index > 0 && onIndex(index - 1),
-  );
+  const next = () => index < total - 1 && onIndex(index + 1);
+  const prev = () => index > 0 && onIndex(index - 1);
+  const swipe = useSwipe(next, prev);
 
   useEffect(() => {
     loadCheckContext(repoPath, book, session.rung, source, engine).then(setCtx, (e: Error) => setError(e.message));
   }, [repoPath, book, session.rung, source, engine]);
 
   const item = session.items[index];
-  const r = item.contextId.reference as { chapter?: unknown; verse?: unknown };
+  const ref = refOf(item);
   const quote = item.contextId.quote as string | Array<{ word: string }>;
   const occurrence = Number(item.contextId.occurrence);
   const targetText = ctx ? engine.verseText(verseOf(ctx.target, item)) : '';
@@ -106,12 +113,17 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
 
   return (
     <main className="screen check" data-testid="check-screen" {...swipe}>
-      <div className="check-top">
-        <button onClick={onBack}>Back</button>
-        <span data-testid="check-header" className="muted">
-          {book} {String(r.chapter)}:{String(r.verse)} · {tool === 'translationWords' ? 'tW' : 'tN'} · {index + 1} / {total}
-        </span>
-      </div>
+      <TopBar
+        title={`${bookName(book)} ${ref.chapter}:${ref.verse}`}
+        titleTestId="check-title"
+        sub={
+          <span data-testid="check-header">
+            {toolName(tool)} · {index + 1} / {total}
+          </span>
+        }
+        onBack={onBack}
+        onTitle={() => setPicking(true)}
+      />
       {error && (
         <p className="error" role="alert">
           {error}
@@ -119,7 +131,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       )}
       {ctx && (
         <>
-          <Help item={item} tool={tool} ctx={ctx} source={source} />
+          <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
           {ctx.panes.map((pane) => {
             const verse = verseOf(pane.book, item);
             const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
@@ -128,20 +140,39 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
               <section key={pane.label} className="pane" data-testid={`pane-${pane.label}`}>
                 <span className="lb">{pane.label}</span>
                 <p>
-                  {pane.book === null && <span className="muted">This source isn't on this device.</span>}
-                  {pane.book !== null && !verse && <span className="muted">This source has no text for this verse.</span>}
-                  {tokens.map((t, i) => (hl.has(i) ? <mark key={i} data-hl className="hl">{t.text}</mark> : <span key={i}>{t.text}</span>))}
+                  {pane.book === null && <span className="muted">{t('sourceMissing')}</span>}
+                  {pane.book !== null && !verse && <span className="muted">{t('verseMissing')}</span>}
+                  {tokens.map((tk, i) => (hl.has(i) ? <mark key={i} data-hl className="hl">{tk.text}</mark> : <span key={i}>{tk.text}</span>))}
                 </p>
               </section>
             );
           })}
           <section className="pane target" data-testid="target" dir={ctx.dir}>
-            <span className="lb">Target text</span>
+            <span className="lb">{t('yourTranslation')}</span>
             <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={target.selected} />}</p>
           </section>
         </>
       )}
-      <p className="muted swipe-hint">Swipe left for the next check, right for the previous one.</p>
+      <nav className="bottombar">
+        <button onClick={prev} disabled={index === 0}>
+          ‹ {t('previous')}
+        </button>
+        <button className="primary" onClick={next} disabled={index === total - 1}>
+          {t('next')} ›
+        </button>
+      </nav>
+      {picking && (
+        <ChapterGrid
+          chapters={chapterStates(book, session.items, engine)}
+          current={ref.chapter}
+          onPick={(chapter) => {
+            setPicking(false);
+            const first = session.items.findIndex((i) => refOf(i).chapter === chapter);
+            if (first >= 0) onIndex(first);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </main>
   );
 }

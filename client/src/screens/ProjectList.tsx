@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Door43Api, Door43Repo, Door43Session } from '../door43/door43Api';
 import type { ProjectSource } from '../project/ProjectSource';
+import { t } from '../i18n';
+import TopBar from './TopBar';
 
 type Props = {
   api: Door43Api;
@@ -9,6 +11,7 @@ type Props = {
   /** The Door43 host projects are cloned from, for example `qa.door43.org`. */
   host: string;
   onOpen: (repoPath: string) => void;
+  onSignOut: () => void;
 };
 
 /** The local repo path of a Door43 repo, if this device holds it (paths compare case-insensitively, as DCS does). */
@@ -17,7 +20,24 @@ const localPathOf = (local: string[], host: string, repo: Door43Repo): string | 
   return local.find((p) => p.toLowerCase() === want) ?? null;
 };
 
-export default function ProjectList({ api, source, session, host, onOpen }: Props) {
+/** Sign out takes a second tap within 4 s: signed out with no internet, the checker cannot sign in again until online. */
+function SignOut({ onSignOut }: { onSignOut: () => void }) {
+  const [armed, setArmed] = useState(false);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const tap = () => {
+    if (armed) return onSignOut();
+    setArmed(true);
+    timer.current = window.setTimeout(() => setArmed(false), 4000);
+  };
+  return (
+    <button className={armed ? 'danger' : ''} onClick={tap}>
+      {armed ? t('signOutConfirm') : t('signOut')}
+    </button>
+  );
+}
+
+export default function ProjectList({ api, source, session, host, onOpen, onSignOut }: Props) {
   const [repos, setRepos] = useState<Door43Repo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -26,7 +46,7 @@ export default function ProjectList({ api, source, session, host, onOpen }: Prop
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
     api.listRepos(session).then(setRepos, async (e: Error) => {
-      setError(`${e.message}. Showing the projects on this device.`);
+      setError(t('offlineProjects', { error: e.message }));
       const prefix = `${host}/`.toLowerCase();
       const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
       setRepos(
@@ -62,33 +82,31 @@ export default function ProjectList({ api, source, session, host, onOpen }: Prop
   if (notTc)
     return (
       <main className="screen">
-        <h1>Not a project</h1>
-        <p>This isn't a translationCore project. It has no checking resources, so there is nothing to check.</p>
-        <button onClick={() => setNotTc(false)}>Back</button>
+        <TopBar title={t('notProjectTitle')} onBack={() => setNotTc(false)} />
+        <p>{t('notProjectBody')}</p>
       </main>
     );
 
   return (
     <main className="screen">
-      <h1>Your projects</h1>
+      <TopBar title={t('projectsTitle')} sub={session.username || undefined} actions={<SignOut onSignOut={onSignOut} />} />
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {repos === null && !error && <p className="muted">Loading your projects…</p>}
-      {repos?.length === 0 && <p className="muted">Your Door43 account and organizations have no repositories yet.</p>}
+      {repos === null && !error && <p className="muted">{t('loadingProjects')}</p>}
+      {repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
       {repos?.map((r) => (
-        <button key={`${r.owner}/${r.name}`} className="row" disabled={busy !== null} onClick={() => open(r)}>
-          <span>
-            {r.name}
-            <br />
+        <button key={`${r.owner}/${r.name}`} className="row project" disabled={busy !== null} onClick={() => open(r)}>
+          <span className="project-text">
+            <span className="project-name">{r.name}</span>
             <span className="muted">
               {r.owner}
               {r.description ? ` · ${r.description}` : ''}
             </span>
           </span>
-          <span className="muted">{busy === `${r.owner}/${r.name}` ? 'Opening…' : ''}</span>
+          <span className="muted">{busy === `${r.owner}/${r.name}` ? t('opening') : '›'}</span>
         </button>
       ))}
     </main>
