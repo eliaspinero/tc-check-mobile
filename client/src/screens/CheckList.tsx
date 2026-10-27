@@ -8,7 +8,15 @@ const STATE_TEXT: Record<Exclude<Session['state'], 'ready'>, string> = {
   unpinned: 'This project has no resources pinned for this tool yet.',
   'not-covered': 'Neither language set of this project covers this book for this tool.',
   'old-twl': 'This project pins the old one-repo translationWords form, which is no longer read. Create the project again in translationCore.',
+  'versification-unavailable': "The numbering data this project needs could not be loaded. Nothing is lost. Open the book again, and the checks will appear.",
+  'versification-unknown': "This project's versification could not be identified, so its checks cannot be lined up with its numbering. Check this book in translationCore on a computer.",
+  'versification-unsupported': '',
 };
+
+const stateText = (session: Session): string =>
+  session.state === 'versification-unsupported'
+    ? `This project numbers its verses with the ${session.scheme} versification. The phone checks only projects in the default eng numbering for now. Check this book in translationCore on a computer.`
+    : STATE_TEXT[session.state as Exclude<Session['state'], 'ready'>];
 
 const refOf = (item: CheckItem): string => {
   const r = item.contextId.reference as { chapter?: unknown; verse?: unknown };
@@ -66,7 +74,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, onOpen
           {error}
         </p>
       )}
-      {session && session.state !== 'ready' && <p>{STATE_TEXT[session.state]}</p>}
+      {session && session.state !== 'ready' && <p>{stateText(session)}</p>}
       {session?.state === 'ready' && (
         <>
           <p data-testid="progress">

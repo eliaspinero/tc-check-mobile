@@ -159,11 +159,28 @@ const tagForSha = async (pin: ResourcePin, fetchFn: typeof fetch): Promise<strin
   return null;
 };
 
+/** The install of each pin now running, keyed `repoPath@sha`. A download outlives the screen that started
+ * it, so a checker who goes Back and opens the project again joins the running install, not a second one. */
+const inFlight = new Map<string, Promise<string>>();
+
+/** Install one pin, once: an install of the same pin already running is joined; a pin already installed
+ * returns its path without a download. */
+export const installPin = (pin: ResourcePin, source: ProjectSource, fetchFn: typeof fetch = (...a) => fetch(...a)): Promise<string> => {
+  const key = `${pin.repoPath.toLowerCase()}@${pin.sha}`;
+  const running = inFlight.get(key);
+  if (running) return running;
+  const job = downloadAndInstall(pin, source, fetchFn).finally(() => inFlight.delete(key));
+  inFlight.set(key, job);
+  return job;
+};
+
 /** Download one pin, verify its commit against the pinned sha, install it. Installs nothing on any failure.
  * A pin with a tag fetches the tag's sb-zip export; a sha-only pin first looks for the tag that names its
  * commit, because a resource-container repo is a burrito only in that export; only an untagged commit
  * falls back to the Gitea archive, verified by the commit Gitea writes in its zip comment. */
-export const installPin = async (pin: ResourcePin, source: ProjectSource, fetchFn: typeof fetch = (...a) => fetch(...a)): Promise<string> => {
+const downloadAndInstall = async (pin: ResourcePin, source: ProjectSource, fetchFn: typeof fetch): Promise<string> => {
+  const already = await installedPathOf(pin, await source.listLocal(), source);
+  if (already) return already;
   const tag = pin.version ?? (await tagForSha(pin, fetchFn));
   const url = tag ? sbZipUrl({ ...pin, version: tag }) : archiveZipUrl(pin);
   let bytes: Uint8Array;
@@ -179,7 +196,10 @@ export const installPin = async (pin: ResourcePin, source: ProjectSource, fetchF
   const revision = tag ? declaredRevision(metadata) : zipArchiveComment(bytes);
   if (revision !== pin.sha)
     throw new Error(`${pin.repoPath} ${pin.version ?? ''} is commit ${revision?.slice(0, 12) ?? 'unknown'}…, but the project pins ${pin.sha.slice(0, 12)}… — not installed`);
-  const target = installPathOf(pin, await source.listLocal());
+  const local = await source.listLocal();
+  const installedMeanwhile = await installedPathOf(pin, local, source);
+  if (installedMeanwhile) return installedMeanwhile;
+  const target = installPathOf(pin, local);
   await source.installResourceZip(target, rezip(files));
   return target;
 };

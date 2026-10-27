@@ -5,6 +5,7 @@ export default defineConfig({
   testMatch: /j\d+-.*\.spec\.ts$/,
   fullyParallel: false,
   workers: 1,
+  globalTeardown: './teardown.ts',
   reporter: [['list'], ['json', { outputFile: '../test-results/journeys.json' }]],
   use: { ...devices['Pixel 7'], trace: 'retain-on-failure' },
   webServer: {

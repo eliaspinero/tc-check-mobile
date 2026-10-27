@@ -2,9 +2,16 @@ import { deriveForProject, deriveTargetBible, mergeAndReattach, progressOf, twAr
 import { oldTwlPin, resolveToolBook } from '../checking/resolve';
 import { matchQuote, tokenizeVerse } from '../checking/sourceHighlight';
 import { targetWords, tokenIndicesFromSelections } from '../checking/selections';
+import { withSpanMembers } from '../checking/spanMembers';
+import { resolveProjectFrame } from '../checking/projectFrame';
 import type { CheckingEngine } from './CheckingEngine';
 
 export const tsEngine: CheckingEngine = {
+  projectFrame: (repoPath, io) =>
+    resolveProjectFrame(repoPath, {
+      store: { readVersification: () => io.readVersification() },
+      api: { getVersification: (name) => io.getVersification(name), getVersifications: () => io.getVersifications() },
+    }),
   resolve: (resources, tool, book, coverage) => ({
     ...resolveToolBook(resources, tool, book, coverage),
     oldTwl: tool === 'translationWords' && oldTwlPin(resources) !== null,
@@ -27,7 +34,8 @@ export const tsEngine: CheckingEngine = {
   },
   progress: (items) => progressOf(items),
   twArticles: (meta) => twArticlesOf(meta),
-  parseBook: (usfm) => deriveTargetBible(usfm),
+  // A verse inside a bridge ( 1-2) reads the bridge's text, as tC4's check screen does.
+  parseBook: (usfm) => withSpanMembers(deriveTargetBible(usfm)),
   verseText: (verse) => tokenizeVerse(verse).map((t) => t.text).join('').trim(),
   sourceTokens: (verse, quote, occurrence) => {
     const tokens = tokenizeVerse(verse);

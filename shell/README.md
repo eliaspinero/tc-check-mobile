@@ -18,11 +18,13 @@ at `9a2ebe81ac45df219e67dee179dd66c71e6f161f` (2026-08-31). Changes:
 From the repository root:
 
 ```bash
-node scripts/build-client-into-shell.mjs
+node scripts/build-client-into-shell.mjs --qa
 ```
 
 It builds the client and writes it to `src-tauri/pankosmia_resources/lib/clients/tc-check/`
-(git-ignored).
+(git-ignored). With `--qa` the client talks to `qa.door43.org`: use it for every test APK and
+phone check. Without it the client talks to production `git.door43.org`; only a store build
+(slice 3) leaves it out. The script fails when the bundle names the other server.
 
 ## Run on the desktop (fast check)
 

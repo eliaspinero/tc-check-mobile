@@ -19,6 +19,13 @@ export interface ProjectSource {
   readResources(repoPath: string): Promise<ResourcesFile | null>;
   /** The §5.2 decision file of (tool, book), or null when nothing was decided. */
   readDecisions(repoPath: string, tool: Tool, book: string): Promise<DecisionFile | null>;
+  /** The project's `ingredients/vrs.json`, or null when it has none. The platform keeps no scheme name,
+   * so the name is the `unrecorded` placeholder and the frame is found by fingerprint (tC4 httpStore). */
+  readVersification(repoPath: string): Promise<{ name: string; bytes: string } | null>;
+  /** The scheme names the platform serves (`GET /content-utils/versifications`). */
+  getVersifications(): Promise<string[]>;
+  /** One scheme document (`GET /content-utils/versification/<name>`). */
+  getVersification(name: string): Promise<unknown>;
   /** Install an unwrapped burrito zip at a `_local_/_sideloaded_/` path. */
   installResourceZip(localRepoPath: string, zip: Uint8Array): Promise<void>;
 }

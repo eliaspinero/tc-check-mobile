@@ -1,4 +1,5 @@
 // ProjectSource over pankosmia-web (routes as tC4's serverApi.ts uses them, all under /api).
+import { UNRECORDED_SCHEME } from '../checking/versification';
 import { ServerError, type ProjectSource } from './ProjectSource';
 import type { DecisionFile, ResourcesFile } from '../checking/types';
 
@@ -53,6 +54,16 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     readMetadata: async (repoPath) => JSON.parse(await text(`/burrito/metadata/raw/${enc(repoPath)}`)) as Record<string, unknown>,
     readResources: (repoPath) => readJsonOrNull<ResourcesFile>(repoPath, 'checking/resources.json'),
     readDecisions: (repoPath, tool, book) => readJsonOrNull<DecisionFile>(repoPath, `checking/${tool}/${book}.json`),
+    readVersification: async (repoPath) => {
+      try {
+        return { name: UNRECORDED_SCHEME, bytes: await text(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc('vrs.json')}`) };
+      } catch (e) {
+        if (e instanceof ServerError && (e.status === 404 || e.status === 400)) return null;
+        throw e;
+      }
+    },
+    getVersifications: async () => JSON.parse(await text('/content-utils/versifications')) as string[],
+    getVersification: async (name) => JSON.parse(await text(`/content-utils/versification/${enc(name)}`)) as unknown,
     installResourceZip: async (localRepoPath, zip) => {
       if (!localRepoPath.startsWith('_local_/_sideloaded_/')) {
         throw new ServerError(`/burrito/zipped/${localRepoPath}`, 0, 'a resource installs under _local_/_sideloaded_/ only');

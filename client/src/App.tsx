@@ -29,21 +29,33 @@ export default function App() {
   const host = new URL(DCS_SERVER).host;
   const [session, setSession] = useState<Door43Session | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
+  // True until the kept token is restored or found missing: the sign-in form must not show meanwhile,
+  // or a checker on slow data signs in again and races the restore (the new token could be forgotten).
+  const [restoring, setRestoring] = useState(true);
 
   // A token kept from an earlier session signs the checker in again. Only Door43's own refusal (401/403)
   // forgets it; with no internet the checker keeps working on the projects already on this device.
   useEffect(() => {
-    store.read().then(async (token) => {
-      if (!token) return;
-      try {
-        setSession({ username: await api.userOf(token), token });
-      } catch (e) {
-        if (e instanceof Door43ApiError && (e.status === 401 || e.status === 403)) await store.forget();
-        else setSession({ username: '', token });
-      }
-    });
+    store
+      .read()
+      .then(async (token) => {
+        if (!token) return;
+        try {
+          setSession({ username: await api.userOf(token), token });
+        } catch (e) {
+          if (e instanceof Door43ApiError && (e.status === 401 || e.status === 403)) await store.forget();
+          else setSession({ username: '', token });
+        }
+      })
+      .finally(() => setRestoring(false));
   }, [api, store]);
 
+  if (restoring)
+    return (
+      <main className="screen">
+        <p className="muted">Signing you in…</p>
+      </main>
+    );
   if (!session) return <SignIn api={api} store={store} onSignedIn={setSession} />;
   switch (screen.name) {
     case 'install':

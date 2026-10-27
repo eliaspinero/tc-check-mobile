@@ -4,7 +4,15 @@ import type { CheckingEngine, CheckItem, Coverage, ResourcePin, ResourcesFile, T
 import type { ProjectSource } from '../project/ProjectSource';
 import { installedPathOf } from '../resources/installPins';
 
-export type SessionState = 'ready' | 'unavailable' | 'unpinned' | 'not-covered' | 'old-twl';
+export type SessionState =
+  | 'ready'
+  | 'unavailable'
+  | 'unpinned'
+  | 'not-covered'
+  | 'old-twl'
+  | 'versification-unavailable'
+  | 'versification-unknown'
+  | 'versification-unsupported';
 
 export interface Session {
   state: SessionState;
@@ -15,6 +23,8 @@ export interface Session {
   /** The pin the list derives from (ready), or the one that is missing (unavailable). */
   pin: ResourcePin | null;
   rung: 'primary' | 'fallback' | null;
+  /** The project's versification, when it is known (the versification states name it). */
+  scheme: string | null;
 }
 
 const SLOT = { translationWords: 'translationWordsLinks', translationNotes: 'translationNotes' } as const;
@@ -28,6 +38,7 @@ const empty = (state: SessionState, pin: ResourcePin | null = null): Session => 
   dropped: null,
   pin,
   rung: null,
+  scheme: null,
 });
 
 export const scopeOf = (metadata: Record<string, unknown>): Record<string, string[]> =>
@@ -71,6 +82,17 @@ export const loadSession = async (repoPath: string, tool: Tool, book: string, so
     twArticles = engine.twArticles(await source.readMetadata(twPath));
   }
 
+  // The project's numbering, as tC4 establishes it. The phone lists checks only for a project in the
+  // resources' own frame (eng): in another frame the source panes, indexed by eng numbers, would show
+  // the wrong verse, and tC4 suppresses rather than guesses. Such a project says so.
+  const frame = await engine.projectFrame(repoPath, {
+    readVersification: () => source.readVersification(repoPath),
+    getVersifications: () => source.getVersifications(),
+    getVersification: (name) => source.getVersification(name),
+  });
+  if (frame.state !== 'ready') return { ...empty(`versification-${frame.state}`, resolution.pin), rung: resolution.rung };
+  if (frame.name !== RESOURCE_FRAME) return { ...empty('versification-unsupported', resolution.pin), rung: resolution.rung, scheme: frame.name };
+
   const [tsv, decisions, metadata] = await Promise.all([
     source.readText(listPath, `${book.toUpperCase()}.tsv`),
     source.readDecisions(repoPath, tool, book.toUpperCase()),
@@ -98,5 +120,6 @@ export const loadSession = async (repoPath: string, tool: Tool, book: string, so
     dropped: unplaceable.length ? { count: unplaceable.length, scheme: RESOURCE_FRAME } : null,
     pin: resolution.pin,
     rung: resolution.rung,
+    scheme: RESOURCE_FRAME,
   };
 };

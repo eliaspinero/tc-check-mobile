@@ -7,7 +7,9 @@ import type { Coverage, Resolution, Tool } from '../checking/resolve';
 import type { ResourcePin, ResourcesFile } from '../checking/types';
 import type { Selection } from '../checking/selections';
 import type { SourceToken } from '../checking/sourceHighlight';
+import type { ProjectFrame } from '../checking/projectFrame';
 
+export type { ProjectFrame };
 export type { CheckItem, DerivedBook, DerivedVerse, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
 
 export interface DeriveInput {
@@ -27,7 +29,16 @@ export interface DeriveInput {
   twArticles?: ReadonlySet<string>;
 }
 
+/** What the frame resolver reads: the project's vrs.json and the platform's scheme documents. */
+export interface FrameIO {
+  readVersification(): Promise<{ name: string; bytes: string } | null>;
+  getVersifications(): Promise<string[]>;
+  getVersification(name: string): Promise<unknown>;
+}
+
 export interface CheckingEngine {
+  /** The project's versification frame (tC4 resolveProjectFrame): a recorded name, else a fingerprint of vrs.json. */
+  projectFrame(repoPath: string, io: FrameIO): Promise<ProjectFrame>;
   /** Which rung's pin supplies this (tool, book), and whether the twl pin is the retired one-repo form. */
   resolve(resources: ResourcesFile, tool: Tool, book: string, coverage: Coverage): Resolution & { oldTwl: boolean };
   /** The derived list with the saved decisions merged in; `orphaned` counts decisions neither pass could place. */
