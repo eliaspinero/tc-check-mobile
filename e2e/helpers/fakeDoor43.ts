@@ -52,7 +52,7 @@ export const fakeDoor43 = async (context: BrowserContext, opts: FakeDoor43Option
     if (method === 'GET' && p === '/user') return route.fulfill(json(200, { login: u }));
     if (method === 'GET' && p === `/users/${u}/tokens`)
       return route.fulfill(json(200, [...state.tokens].map(([id, t]) => ({ id, name: t.name, token_last_eight: t.sha1.slice(-8) }))));
-    const del = new RegExp(`^/users/${u}/tokens/(\d+)$`).exec(p);
+    const del = new RegExp(`^/users/${u}/tokens/(\\d+)$`).exec(p);
     if (method === 'DELETE' && del) {
       state.tokens.delete(Number(del[1]));
       return route.fulfill({ status: 204, headers: { 'Access-Control-Allow-Origin': '*' } });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import SignIn from './screens/SignIn';
 import ProjectList from './screens/ProjectList';
 import ResourceInstall from './screens/ResourceInstall';
@@ -33,6 +33,11 @@ export default function App() {
   // True until the kept token is restored or found missing: the sign-in form must not show meanwhile,
   // or a checker on slow data signs in again and races the restore (the new token could be forgotten).
   const [restoring, setRestoring] = useState(true);
+  // The session screens act for. Sign-out clears it at once, so work that ends later (a clone) opens nothing.
+  const live = useRef<Door43Session | null>(null);
+  useEffect(() => {
+    live.current = session;
+  }, [session]);
 
   // A token kept from an earlier session signs the checker in again. Only Door43's own refusal (401/403)
   // forgets it; with no internet the checker keeps working on the projects already on this device.
@@ -53,6 +58,7 @@ export default function App() {
 
   // Sign out: the kept token leaves this device and the sign-in form shows. No Door43 call, as tC4's signOut.
   const signOut = () => {
+    live.current = null;
     store
       .forget()
       .catch(() => undefined)
@@ -118,6 +124,6 @@ export default function App() {
         />
       );
     default:
-      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => setScreen({ name: 'install', repoPath })} onSignOut={signOut} />;
+      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => live.current === session && setScreen({ name: 'install', repoPath })} onSignOut={signOut} />;
   }
 }
