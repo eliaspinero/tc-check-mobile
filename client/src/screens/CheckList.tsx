@@ -8,6 +8,8 @@ import { bookName, toolName } from '../i18n/books';
 import TopBar from './TopBar';
 import ChapterGrid from './ChapterGrid';
 import { chapterStates, refOf } from './chapters';
+import { gatewayOf } from './checkLabel';
+import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 
 const STATE_KEY: Record<Exclude<Session['state'], 'ready'>, keyof Strings> = {
   unavailable: 'stateUnavailable',
@@ -39,6 +41,9 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   const [syncing, setSyncing] = useState(false);
   const [chapter, setChapter] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
+  const [ctx, setCtx] = useState<CheckContext | null>(null);
+  // tW article titles by `category/groupId`, read for the chapter on screen.
+  const [titles, setTitles] = useState<Map<string, string>>(new Map());
 
   const load = useCallback(() => {
     setError(null);
@@ -74,7 +79,36 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
     else verses.push({ verse: ref.verse, checks: [{ item, index }] });
   });
   const openVerse = focused && refOf(focused).chapter === shown ? refOf(focused).verse : verses[0]?.verse;
-  const chapterProgress = engine.progress(verses.flatMap((v) => v.checks.map((c) => c.item)));
+  const chapterItems = verses.flatMap((v) => v.checks.map((c) => c.item));
+  const chapterProgress = engine.progress(chapterItems);
+
+  // The rows name their checks with the sources' words, so the list reads the book's sources once.
+  const rung = session?.state === 'ready' ? session.rung : null;
+  useEffect(() => {
+    if (!rung) return;
+    loadCheckContext(repoPath, book, rung, source, engine).then(setCtx, () => setCtx(null));
+  }, [repoPath, book, rung, source, engine]);
+
+  const articleKey = (item: CheckItem) => `${(item.category as string | undefined) ?? 'kt'}/${item.contextId.groupId}`;
+  const missing = tool === 'translationWords' && ctx?.twPath ? [...new Set(chapterItems.map(articleKey))].filter((k) => !titles.has(k)) : [];
+  const missingKey = missing.join(',');
+  useEffect(() => {
+    if (!missingKey || !ctx?.twPath) return;
+    const twPath = ctx.twPath;
+    Promise.all(
+      missingKey.split(',').map(async (key): Promise<[string, string]> => {
+        const md = await source.readText(twPath, `payload/${key}.md`).catch(() => '');
+        const heading = md.split(/\r?\n/).find((l) => l.startsWith('# '));
+        return [key, heading ? heading.slice(2).trim() : ''];
+      }),
+    ).then((read) => setTitles((old) => new Map([...old, ...read])));
+  }, [missingKey, ctx, source]);
+
+  const labelOf = (item: CheckItem) => {
+    const words = ctx ? gatewayOf(engine, ctx.panes, item) : null;
+    const article = tool === 'translationWords' ? titles.get(articleKey(item)) : undefined;
+    return { label: article || words || String(item.contextId.quoteString ?? ''), quote: article ? words : null };
+  };
   const title = `${bookName(book)} ${shown}`;
 
   return (
@@ -122,9 +156,17 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
                   </summary>
                   {checks.map(({ item, index }) => {
                     const done = engine.progress([item]).decided === 1;
+                    const { label, quote } = labelOf(item);
                     return (
                       <button key={`${item.contextId.checkId}-${index}`} className="row check-row" data-testid="check-row" onClick={() => onOpen(session, index)}>
-                        <span>{item.contextId.groupId}</span>
+                        <span className="check-name">
+                          <span data-testid="row-label">{label}</span>
+                          {quote && (
+                            <span data-testid="row-quote" className="muted">
+                              {quote}
+                            </span>
+                          )}
+                        </span>
                         <span className="muted">{done ? t('checked') : ''}</span>
                       </button>
                     );

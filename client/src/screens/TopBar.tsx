@@ -12,10 +12,12 @@ type Props = {
   titleTestId?: string;
   /** Buttons at the right end. */
   actions?: ReactNode;
+  /** Shows the app's name above the title: the screens before a book is open. */
+  brand?: boolean;
 };
 
 /** The bar at the top of every screen: back arrow, the place, and the screen's actions. */
-export default function TopBar({ title, sub, onBack, onTitle, titleTestId, actions }: Props) {
+export default function TopBar({ title, sub, onBack, onTitle, titleTestId, actions, brand }: Props) {
   return (
     <header className="topbar" role="banner">
       {onBack && (
@@ -24,6 +26,11 @@ export default function TopBar({ title, sub, onBack, onTitle, titleTestId, actio
         </button>
       )}
       <div className="topbar-place">
+        {brand && (
+          <div className="brand" data-testid="app-name">
+            {t('appName')}
+          </div>
+        )}
         <h1>
           {onTitle ? (
             <button className="title-button" onClick={onTitle}>

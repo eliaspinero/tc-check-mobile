@@ -49,7 +49,7 @@ test('j4: a right-to-left target renders rtl with the selection on the right wor
   await writeIngredient(project, 'checking/settings.json', JSON.stringify({ ...settings, textDirection: 'rtl' }, null, 2));
   await openProject(page, context, 'sample_rtl');
   await page.getByRole('button', { name: 'Titus Words' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
+  await page.getByTestId('check-row').filter({ hasText: /^Diosof God(Checked)?$/ }).first().click();
   await expect(page.getByTestId('target')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByTestId('target').locator('[data-sel]')).toHaveText(['Dios']);
 });

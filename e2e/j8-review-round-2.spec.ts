@@ -80,7 +80,7 @@ test('j8: a target that bridges verses (\\v 1-2) shows its text and the stored s
   await writeIngredient(project, 'TIT.usfm', bridged);
   await openProject(page, context, 'sample_bridge');
   await page.getByRole('button', { name: 'Titus Words' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
+  await page.getByTestId('check-row').filter({ hasText: /^Diosof God(Checked)?$/ }).first().click();
   await expect(page.getByTestId('target')).toContainText('Pablo, siervo de Dios y apóstol de Jesucristo,');
   await expect(page.getByTestId('target').locator('[data-sel]')).toHaveText(['Dios']);
 });

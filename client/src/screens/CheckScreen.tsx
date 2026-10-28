@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ArticleBlock, CheckingEngine, CheckItem, DerivedBook, Selection, Tool } from '../engine/CheckingEngine';
+import type { ArticleBlock, CheckingEngine, CheckItem, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import type { Session } from '../session/loadSession';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
@@ -10,6 +10,8 @@ import TopBar from './TopBar';
 import ChapterGrid from './ChapterGrid';
 import Markdown from './Markdown';
 import { chapterStates, refOf } from './chapters';
+import { gatewayOf, verseOf } from './checkLabel';
+import { noteWithoutAcademyLinks } from './noteText';
 
 type Props = {
   repoPath: string;
@@ -21,11 +23,6 @@ type Props = {
   engine: CheckingEngine;
   onIndex: (index: number) => void;
   onBack: () => void;
-};
-
-const verseOf = (book: DerivedBook | null, item: CheckItem) => {
-  const r = item.contextId.reference as { chapter?: unknown; verse?: unknown };
-  return book?.chapters[String(r.chapter)]?.[String(r.verse)];
 };
 
 /** The target verse text with each selectable word wrapped, punctuation and spacing kept as written. */
@@ -71,8 +68,10 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
     };
   }, [tool, ctx.twPath, category, c.groupId, source, engine]);
 
-  const title = tool === 'translationNotes' ? c.groupId : (article?.title ?? c.groupId);
-  const blocks = tool === 'translationNotes' ? engine.noteBlocks(c.occurrenceNote ?? '') : (article?.blocks ?? []);
+  // A note is titled by the words it is about, as tC4's cards are; its Academy articles become tags.
+  const note = tool === 'translationNotes' ? noteWithoutAcademyLinks(c.occurrenceNote ?? '', c.groupId) : null;
+  const title = note ? gatewayOf(engine, ctx.panes, item) : (article?.title ?? c.groupId);
+  const blocks = note ? engine.noteBlocks(note.text) : (article?.blocks ?? []);
   // Closed, the help shows its first block; a heading first shows the paragraph under it.
   const preview = blocks.find((b) => b.kind !== 'h');
 
@@ -82,6 +81,11 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
         <span data-testid="help-title" className="help-title">{title}</span>
         <span className="chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
       </button>
+      {note && (
+        <p data-testid="help-refs" className="tags">
+          {note.refs.join(' · ')}
+        </p>
+      )}
       {blocks.length > 0 && (
         <div data-testid="help-body" className={open ? 'help-body' : 'help-body clamp'}>
           <Markdown blocks={open ? blocks : preview ? [preview] : []} />
@@ -132,6 +136,11 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       {ctx && (
         <>
           <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
+          {/* The checker's own verse right under the help, so it is in view without scrolling; the sources follow in full. */}
+          <section className="pane target" data-testid="target" dir={ctx.dir}>
+            <span className="lb">{t('yourTranslation')}</span>
+            <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={target.selected} />}</p>
+          </section>
           {ctx.panes.map((pane) => {
             const verse = verseOf(pane.book, item);
             const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
@@ -147,10 +156,6 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
               </section>
             );
           })}
-          <section className="pane target" data-testid="target" dir={ctx.dir}>
-            <span className="lb">{t('yourTranslation')}</span>
-            <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={target.selected} />}</p>
-          </section>
         </>
       )}
       <nav className="bottombar">

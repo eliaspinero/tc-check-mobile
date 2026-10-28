@@ -45,7 +45,7 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
 
   return (
     <main className="screen">
-      <TopBar title={t('booksTitle')} sub={repoPath.split('/').slice(-2).join('/')} onBack={onBack} />
+      <TopBar brand title={t('booksTitle')} sub={repoPath.split('/').slice(-2).join('/')} onBack={onBack} />
       {error && (
         <p className="error" role="alert">
           {error}

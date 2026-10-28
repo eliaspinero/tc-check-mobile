@@ -98,7 +98,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
 
   return (
     <main className="screen">
-      <TopBar title={t('projectsTitle')} sub={session.username || undefined} actions={<SignOut onSignOut={onSignOut} />} />
+      <TopBar brand title={t('projectsTitle')} sub={session.username || undefined} actions={<SignOut onSignOut={onSignOut} />} />
       {error && (
         <p className="error" role="alert">
           {error}

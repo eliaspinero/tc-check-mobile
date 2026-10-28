@@ -1,6 +1,6 @@
 import { deriveForProject, deriveTargetBible, mergeAndReattach, progressOf, twArticlesOf } from '../checking/derive';
 import { oldTwlPin, resolveToolBook } from '../checking/resolve';
-import { matchQuote, tokenizeVerse } from '../checking/sourceHighlight';
+import { gatewayQuote, matchQuote, tokenizeVerse } from '../checking/sourceHighlight';
 import { targetWords, tokenIndicesFromSelections } from '../checking/selections';
 import { withSpanMembers } from '../checking/spanMembers';
 import { resolveProjectFrame } from '../checking/projectFrame';
@@ -42,6 +42,7 @@ export const tsEngine: CheckingEngine = {
     const tokens = tokenizeVerse(verse);
     return { tokens, highlighted: [...matchQuote(tokens, quote, occurrence)].sort((a, b) => a - b) };
   },
+  gatewayQuote: (verse, quote, occurrence) => gatewayQuote(tokenizeVerse(verse), quote, occurrence),
   targetTokens: (verseText, selections) => ({
     tokens: targetWords(verseText),
     selected: tokenIndicesFromSelections(verseText, selections),
