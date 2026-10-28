@@ -39,17 +39,32 @@ test('j7 polish: tN rows and the tN help are titled by the ULT words, with the A
   await expect(page.getByTestId('help-refs')).toHaveText('figs-abstractnouns');
 });
 
+test('j7 polish: two notes on the same words in one verse stay told apart by their opening words', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await openTitus(page, context, 'Notes');
+  await expect(page.getByTestId('check-row').first().getByTestId('row-note')).toHaveText(/^Fe es un sustantivo abstracto/);
+  await page.getByRole('button', { name: 'Titus 1' }).click();
+  await page.getByRole('dialog', { name: 'Chapters' }).getByRole('button', { name: /^Chapter 2/ }).click();
+  const verse = page.getByTestId('verse').filter({ has: page.locator('summary', { hasText: /^2:5 / }) });
+  await verse.locator('summary').click();
+  const rows = await verse.getByTestId('check-row').allTextContents();
+  expect(rows.length).toBeGreaterThan(1);
+  expect(new Set(rows).size).toBe(rows.length);
+});
+
 test('j7 polish: no help shows an rc:// address', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await openTitus(page, context, 'Notes');
   await page.getByTestId('check-row').first().click();
   await page.getByTestId('help').getByRole('button').click();
-  // The help stays open from check to check: walk the first notes of Titus 1.
-  for (let i = 0; i < 12; i++) {
-    await expect(page.getByTestId('help-body')).not.toBeEmpty();
+  // The help stays open from check to check: walk every note of Titus, where some notes link bare `(Ver: rc://…)`.
+  const next = page.getByRole('button', { name: /^Next/ });
+  for (let i = 1; ; i++) {
+    await expect(page.getByRole('banner')).toContainText(`${i} / `);
     await expect(page.getByTestId('help')).not.toContainText('rc://');
     await expect(page.getByTestId('help')).not.toContainText('[[');
-    await page.getByRole('button', { name: /^Next/ }).click();
+    if (await next.isDisabled()) break;
+    await next.click();
   }
 });
 

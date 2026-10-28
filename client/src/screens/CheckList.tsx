@@ -9,6 +9,7 @@ import TopBar from './TopBar';
 import ChapterGrid from './ChapterGrid';
 import { chapterStates, refOf } from './chapters';
 import { gatewayOf } from './checkLabel';
+import { noteWithoutAcademyLinks } from './noteText';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 
 const STATE_KEY: Record<Exclude<Session['state'], 'ready'>, keyof Strings> = {
@@ -107,7 +108,10 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   const labelOf = (item: CheckItem) => {
     const words = ctx ? gatewayOf(engine, ctx.panes, item) : null;
     const article = tool === 'translationWords' ? titles.get(articleKey(item)) : undefined;
-    return { label: article || words || String(item.contextId.quoteString ?? ''), quote: article ? words : null };
+    // A tN row also shows how its note opens, in the note's language: two notes on the same words stay apart.
+    const text = (item.contextId as { occurrenceNote?: string }).occurrenceNote ?? '';
+    const note = tool === 'translationNotes' ? engine.noteBlocks(noteWithoutAcademyLinks(text, '').text).find((b) => b.kind !== 'h') : undefined;
+    return { label: article || words || String(item.contextId.quoteString ?? ''), quote: article ? words : null, note: note?.text ?? null };
   };
   const title = `${bookName(book)} ${shown}`;
 
@@ -156,7 +160,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
                   </summary>
                   {checks.map(({ item, index }) => {
                     const done = engine.progress([item]).decided === 1;
-                    const { label, quote } = labelOf(item);
+                    const { label, quote, note } = labelOf(item);
                     return (
                       <button key={`${item.contextId.checkId}-${index}`} className="row check-row" data-testid="check-row" onClick={() => onOpen(session, index)}>
                         <span className="check-name">
@@ -164,6 +168,11 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
                           {quote && (
                             <span data-testid="row-quote" className="muted">
                               {quote}
+                            </span>
+                          )}
+                          {note && (
+                            <span data-testid="row-note" className="muted row-note">
+                              {note}
                             </span>
                           )}
                         </span>

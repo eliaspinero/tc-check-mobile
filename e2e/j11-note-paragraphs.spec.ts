@@ -14,7 +14,7 @@ test('j11: a tN note with a literal \\n shows its paragraphs apart, as tC4 does'
   await page.getByRole('dialog', { name: 'Chapters' }).getByRole('button', { name: /^Chapter 3/ }).click();
   const verse = page.getByTestId('verse').filter({ has: page.locator('summary', { hasText: /^3:7 / }) });
   await verse.locator('summary').click();
-  await verse.getByTestId('check-row').filter({ hasText: /^so that$/ }).click();
+  await verse.getByTestId('row-label').filter({ hasText: /^so that$/ }).click();
   await expect(page.getByTestId('check-title')).toHaveText('Titus 3:7');
   await page.getByTestId('help').getByRole('button').click();
   const paragraphs = page.getByTestId('help-body').locator('p');

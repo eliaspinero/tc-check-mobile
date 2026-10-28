@@ -54,7 +54,8 @@ button.tool { display: flex; flex-direction: column; align-items: center; gap: 2
 .verse[open] summary { padding-bottom: 6px; }
 .check-row { width: 100%; border: none; border-radius: 8px; text-align: left; padding: 10px 12px 10px 16px; }
 .check-row:active { background: var(--surface); }
-.check-name { display: flex; flex-direction: column; gap: 2px; }
+.check-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-note { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .done-mark { color: var(--ok); }
 
 /* The chapter grid. */
