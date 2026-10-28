@@ -1,7 +1,9 @@
 // The tc-check lane: a pankosmia-web rig on 19980 and the Vite dev client on 5180,
 // so it never collides with tC4's lanes (19998 and 19990/5190). See dev-env/README.md.
+// CLIENT_PORT moves Vite for a worktree whose sibling already holds 5180; the rig stays shared.
 export const RIG_URL = 'http://127.0.0.1:19980';
-export const CLIENT_URL = 'http://127.0.0.1:5180/clients/tc-check/';
+export const CLIENT_PORT = Number(process.env.CLIENT_PORT ?? 5180);
+export const CLIENT_URL = `http://127.0.0.1:${CLIENT_PORT}/clients/tc-check/`;
 
 /** True when the rig answers `GET /api/version`. */
 export const rigUp = async (): Promise<boolean> => {
