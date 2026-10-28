@@ -10,6 +10,9 @@ import ChapterGrid from './ChapterGrid';
 import { chapterStates, refOf } from './chapters';
 import { gatewayOf } from './checkLabel';
 import { noteWithoutAcademyLinks } from './noteText';
+import { splitTitle } from './articleTitle';
+import ErrorLine from './ErrorLine';
+import { IDLE, failure, type Run } from './load';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 
 const STATE_KEY: Record<Exclude<Session['state'], 'ready'>, keyof Strings> = {
@@ -38,8 +41,9 @@ type Props = {
 
 export default function CheckList({ repoPath, tool, book, source, engine, focus, onOpen, onBack }: Props) {
   const [session, setSession] = useState<Session | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
+  // The list's one status line: nothing to say, a Sync running, or why loading or syncing failed.
+  // A failure shows over the list already on screen, which stays.
+  const [status, setStatus] = useState<Run<{ state: 'syncing' }>>(IDLE);
   const [chapter, setChapter] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
   const [ctx, setCtx] = useState<CheckContext | null>(null);
@@ -47,25 +51,23 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   const [titles, setTitles] = useState<Map<string, string>>(new Map());
 
   const load = useCallback(() => {
-    setError(null);
-    loadSession(repoPath, tool, book, source, engine).then(setSession, (e: Error) => setError(e.message));
+    setStatus(IDLE);
+    loadSession(repoPath, tool, book, source, engine).then(setSession, (e: Error) => setStatus({ state: 'failed', message: e.message }));
   }, [repoPath, tool, book, source, engine]);
   useEffect(load, [load]);
 
   // Slice 1 is read only: Sync brings Door43 main into this copy and reloads the list. It writes nothing.
   const sync = async () => {
-    setSyncing(true);
-    setError(null);
+    setStatus({ state: 'syncing' });
     try {
       await source.enableNet();
       await source.pull(repoPath);
       load();
     } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSyncing(false);
+      setStatus({ state: 'failed', message: (e as Error).message });
     }
   };
+  const syncing = status.state === 'syncing';
 
   const items = session?.state === 'ready' ? session.items : [];
   const focused = focus !== undefined ? items[focus] : undefined;
@@ -99,8 +101,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
     Promise.all(
       missingKey.split(',').map(async (key): Promise<[string, string]> => {
         const md = await source.readText(twPath, `payload/${key}.md`).catch(() => '');
-        const heading = md.split(/\r?\n/).find((l) => l.startsWith('# '));
-        return [key, heading ? heading.slice(2).trim() : ''];
+        return [key, splitTitle(md).title ?? ''];
       }),
     ).then((read) => setTitles((old) => new Map([...old, ...read])));
   }, [missingKey, ctx, source]);
@@ -128,11 +129,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
           </button>
         }
       />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <ErrorLine text={failure(status)} />
       {session && session.state !== 'ready' && <p>{stateText(session)}</p>}
       {session?.state === 'ready' && (
         <>

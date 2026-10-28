@@ -8,6 +8,9 @@ import { unzipSync, zipSync } from 'fflate';
 import type { ResourcePin, ResourcesFile } from '../checking/types';
 import type { ProjectSource } from '../project/ProjectSource';
 
+/** One pin, whatever the case of its repo path: the same commit of the same repo. */
+const pinKey = (pin: ResourcePin): string => `${pin.repoPath.toLowerCase()}@${pin.sha}`;
+
 /** The pins slice 1 reads: both language sets' tN, TWL and tW, and the source panes (ULT, UST). */
 export const neededPins = (resources: ResourcesFile): ResourcePin[] => {
   const out: ResourcePin[] = [];
@@ -18,15 +21,17 @@ export const neededPins = (resources: ResourcesFile): ResourcePin[] => {
   for (const pin of resources.extraScripture ?? []) out.push(pin);
   const seen = new Set<string>();
   return out.filter((p) => {
-    const key = `${p.repoPath.toLowerCase()}@${p.sha}`;
+    const key = pinKey(p);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 };
 
+const hostPath = (repoPath: string) => repoPath.replace(/^https?:\/\//, '');
+
 const ownerRepo = (repoPath: string): { owner: string; repo: string } => {
-  const parts = repoPath.replace(/^https?:\/\//, '').split('/').filter(Boolean);
+  const parts = hostPath(repoPath).split('/').filter(Boolean);
   return { owner: (parts[parts.length - 2] ?? '').toLowerCase(), repo: (parts[parts.length - 1] ?? '').toLowerCase() };
 };
 
@@ -77,7 +82,6 @@ export const missingPins = async (resources: ResourcesFile, source: ProjectSourc
   return out;
 };
 
-const hostPath = (repoPath: string) => repoPath.replace(/^https?:\/\//, '');
 export const sbZipUrl = (pin: ResourcePin & { version: string }) => `https://${hostPath(pin.repoPath)}/sb/${pin.version}.zip`;
 export const archiveZipUrl = (pin: ResourcePin) => `https://${hostPath(pin.repoPath)}/archive/${pin.sha}.zip`;
 
@@ -175,7 +179,7 @@ const inFlight = new Map<string, Promise<string>>();
 /** Install one pin, once: an install of the same pin already running is joined; a pin already installed
  * returns its path without a download. */
 export const installPin = (pin: ResourcePin, source: ProjectSource, fetchFn: typeof fetch = (...a) => fetch(...a)): Promise<string> => {
-  const key = `${pin.repoPath.toLowerCase()}@${pin.sha}`;
+  const key = pinKey(pin);
   const running = inFlight.get(key);
   if (running) return running;
   const job = downloadAndInstall(pin, source, fetchFn).finally(() => inFlight.delete(key));

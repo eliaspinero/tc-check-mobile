@@ -28,11 +28,12 @@ export default function App() {
   const source = useMemo(() => pankosmiaSource(), []);
   const engine = tsEngine;
   const host = new URL(DCS_SERVER).host;
-  const [session, setSession] = useState<Door43Session | null>(null);
-  const [screen, setScreen] = useState<Screen>({ name: 'projects' });
-  // True until the kept token is restored or found missing: the sign-in form must not show meanwhile,
+  // Restoring until the kept token is restored or found missing: the sign-in form must not show meanwhile,
   // or a checker on slow data signs in again and races the restore (the new token could be forgotten).
-  const [restoring, setRestoring] = useState(true);
+  const [auth, setAuth] = useState<{ state: 'restoring' } | { state: 'signedOut' } | { state: 'signedIn'; session: Door43Session }>({ state: 'restoring' });
+  const session = auth.state === 'signedIn' ? auth.session : null;
+  const signIn = (s: Door43Session) => setAuth({ state: 'signedIn', session: s });
+  const [screen, setScreen] = useState<Screen>({ name: 'projects' });
   // The session screens act for. Sign-out clears it at once, so work that ends later (a clone) opens nothing.
   const live = useRef<Door43Session | null>(null);
   useEffect(() => {
@@ -54,15 +55,17 @@ export default function App() {
     store
       .read()
       .then(async (token) => {
-        if (!token) return;
+        if (!token) return setAuth({ state: 'signedOut' });
         try {
-          setSession({ username: await api.userOf(token), token });
+          signIn({ username: await api.userOf(token), token });
         } catch (e) {
-          if (e instanceof Door43ApiError && (e.status === 401 || e.status === 403)) await store.forget();
-          else setSession({ username: '', token });
+          if (e instanceof Door43ApiError && (e.status === 401 || e.status === 403)) {
+            await store.forget();
+            setAuth({ state: 'signedOut' });
+          } else signIn({ username: '', token });
         }
       })
-      .finally(() => setRestoring(false));
+      .catch(() => setAuth({ state: 'signedOut' }));
   }, [api, store]);
 
   // Sign out: the kept token leaves this device and the sign-in form shows. No Door43 call, as tC4's signOut.
@@ -72,18 +75,18 @@ export default function App() {
       .forget()
       .catch(() => undefined)
       .finally(() => {
-        setSession(null);
+        setAuth({ state: 'signedOut' });
         setScreen({ name: 'projects' });
       });
   };
 
-  if (restoring)
+  if (auth.state === 'restoring')
     return (
       <main className="screen">
         <p className="muted">{t('signingYouIn')}</p>
       </main>
     );
-  if (!session) return <SignIn api={api} store={store} onSignedIn={setSession} />;
+  if (!session) return <SignIn api={api} store={store} onSignedIn={signIn} />;
   switch (screen.name) {
     case 'install':
       return (

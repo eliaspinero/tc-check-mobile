@@ -3,6 +3,8 @@ import type { Door43Api, Door43Repo, Door43Session } from '../door43/door43Api';
 import type { ProjectSource } from '../project/ProjectSource';
 import { t } from '../i18n';
 import TopBar from './TopBar';
+import ErrorLine from './ErrorLine';
+import { IDLE, failure, type Run } from './load';
 import { door43ErrorText } from './door43Error';
 
 type Props = {
@@ -24,6 +26,9 @@ const localPathOf = (local: string[], host: string, repo: Door43Repo): string | 
   return local.find((p) => p.toLowerCase() === want) ?? null;
 };
 
+/** A project's key in the opening and cloning states: `owner/name`. */
+const keyOf = (repo: Door43Repo): string => `${repo.owner}/${repo.name}`;
+
 /** Sign out takes a second tap within 4 s: signed out with no internet, the checker cannot sign in again until online. */
 function SignOut({ onSignOut }: { onSignOut: () => void }) {
   const [armed, setArmed] = useState(false);
@@ -43,14 +48,14 @@ function SignOut({ onSignOut }: { onSignOut: () => void }) {
 
 export default function ProjectList({ api, source, session, host, onOpen, onSignOut, cloning, onCloning }: Props) {
   const [repos, setRepos] = useState<Door43Repo[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [notTc, setNotTc] = useState(false);
+  // What the screen is doing besides listing: nothing, opening one project (`owner/name`), showing why the
+  // list or an opening failed (over the list, which stays), or saying the opened repo is not a tC project.
+  const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'notTc' }>>(IDLE);
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
     api.listRepos(session).then(setRepos, async (e: unknown) => {
-      setError(t('offlineProjects', { error: door43ErrorText(e) }));
+      setStatus({ state: 'failed', message: t('offlineProjects', { error: door43ErrorText(e) }) });
       const prefix = `${host}/`.toLowerCase();
       const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
       setRepos(
@@ -62,36 +67,36 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     });
   }, [api, session, source, host]);
 
+  // Opening clears the offline notice, as any earlier failure: what shows next is about this project.
   const open = async (repo: Door43Repo) => {
-    setBusy(`${repo.owner}/${repo.name}`);
-    setError(null);
+    setStatus({ state: 'opening', key: keyOf(repo) });
     try {
       let repoPath = localPathOf(await source.listLocal(), host, repo);
       if (!repoPath) {
-        onCloning(`${repo.owner}/${repo.name}`, true);
+        onCloning(keyOf(repo), true);
         try {
           await source.enableNet();
           repoPath = await source.clone(host, repo.owner, repo.name);
         } finally {
-          onCloning(`${repo.owner}/${repo.name}`, false);
+          onCloning(keyOf(repo), false);
         }
       }
       if (!(await source.readResources(repoPath))) {
-        setNotTc(true);
+        setStatus({ state: 'notTc' });
         return;
       }
       onOpen(repoPath);
+      setStatus(IDLE);
     } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
+      setStatus({ state: 'failed', message: (e as Error).message });
     }
   };
+  const opening = status.state === 'opening' ? status.key : null;
 
-  if (notTc)
+  if (status.state === 'notTc')
     return (
       <main className="screen">
-        <TopBar title={t('notProjectTitle')} onBack={() => setNotTc(false)} />
+        <TopBar title={t('notProjectTitle')} onBack={() => setStatus(IDLE)} />
         <p>{t('notProjectBody')}</p>
       </main>
     );
@@ -99,15 +104,11 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
   return (
     <main className="screen">
       <TopBar brand title={t('projectsTitle')} sub={session.username || undefined} actions={<SignOut onSignOut={onSignOut} />} />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {repos === null && !error && <p className="muted">{t('loadingProjects')}</p>}
+      <ErrorLine text={failure(status)} />
+      {repos === null && status.state !== 'failed' && <p className="muted">{t('loadingProjects')}</p>}
       {repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
       {repos?.map((r) => (
-        <button key={`${r.owner}/${r.name}`} className="row project" disabled={busy !== null || cloning.has(`${r.owner}/${r.name}`)} onClick={() => open(r)}>
+        <button key={keyOf(r)} className="row project" disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
           <span className="project-text">
             <span className="project-name">{r.name}</span>
             <span className="muted">
@@ -115,7 +116,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
               {r.description ? ` · ${r.description}` : ''}
             </span>
           </span>
-          <span className="muted">{busy === `${r.owner}/${r.name}` || cloning.has(`${r.owner}/${r.name}`) ? t('opening') : '›'}</span>
+          <span className="muted">{opening === keyOf(r) || cloning.has(keyOf(r)) ? t('opening') : '›'}</span>
         </button>
       ))}
     </main>

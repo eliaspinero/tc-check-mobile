@@ -5,21 +5,23 @@ import { loadSession, scopeOf } from '../session/loadSession';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import TopBar from './TopBar';
+import ErrorLine from './ErrorLine';
+import { LOADING, failure, ready, type Load } from './load';
 
 const TOOLS: Tool[] = ['translationWords', 'translationNotes'];
 
 type Props = { repoPath: string; source: ProjectSource; engine: CheckingEngine; onPick: (book: string, tool: Tool) => void; onBack: () => void };
 
 export default function BookPicker({ repoPath, source, engine, onPick, onBack }: Props) {
-  const [books, setBooks] = useState<string[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<Load<string[]>>(LOADING);
+  const books = ready(scope);
   // `${book} ${tool}` → its progress, or null when the list cannot be shown (the list says why).
   const [progress, setProgress] = useState<Record<string, { decided: number; total: number } | null>>({});
 
   useEffect(() => {
     source.readMetadata(repoPath).then(
-      (meta) => setBooks(Object.keys(scopeOf(meta))),
-      (e: Error) => setError(e.message),
+      (meta) => setScope({ state: 'ready', value: Object.keys(scopeOf(meta)) }),
+      (e: Error) => setScope({ state: 'failed', message: e.message }),
     );
   }, [repoPath, source]);
 
@@ -46,11 +48,7 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
   return (
     <main className="screen">
       <TopBar brand title={t('booksTitle')} sub={repoPath.split('/').slice(-2).join('/')} onBack={onBack} />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <ErrorLine text={failure(scope)} />
       {books?.map((book) => (
         <div key={book} className="book">
           <span className="book-name">{bookName(book)}</span>

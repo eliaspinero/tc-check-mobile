@@ -5,6 +5,8 @@ import { DownloadStopped, installPin, missingPins } from '../resources/installPi
 import { t } from '../i18n';
 import { resourceErrorText } from './resourceError';
 import TopBar from './TopBar';
+import ErrorLine from './ErrorLine';
+import { LOADING, failure, ready, type Load } from './load';
 
 type Row = { pin: ResourcePin; state: 'waiting' | 'downloading' | 'installed' | 'stopped' | 'failed'; reason?: string; message?: string };
 
@@ -12,8 +14,9 @@ const labelOf = (pin: ResourcePin) => `${pin.repoPath.split('/').pop()} ${pin.ve
 
 /** Installs the project's missing pinned resources, then calls onReady. Nothing to install: onReady at once. */
 export default function ResourceInstall({ repoPath, source, onReady, onBack }: { repoPath: string; source: ProjectSource; onReady: () => void; onBack: () => void }) {
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Ready holds the rows, and each row keeps its own state.
+  const [install, setInstall] = useState<Load<Row[]>>(LOADING);
+  const rows = ready(install);
   // One install pass per mount: React's development double effect must not start two downloads of one pin.
   const started = useRef(false);
   // A download keeps going after the checker leaves this screen; what it finds then must not move them.
@@ -28,7 +31,7 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
   const run = useCallback(
     async (pins: ResourcePin[]) => {
       const next: Row[] = pins.map((pin) => ({ pin, state: 'waiting' }));
-      const show = () => mounted.current && setRows([...next]);
+      const show = () => mounted.current && setInstall({ state: 'ready', value: [...next] });
       show();
       for (const row of next) {
         row.state = 'downloading';
@@ -60,7 +63,7 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
       if (pins.length === 0) return onReady();
       await source.enableNet();
       await run(pins);
-    })().catch((e: Error) => mounted.current && setError(e.message));
+    })().catch((e: Error) => mounted.current && setInstall({ state: 'failed', message: e.message }));
   }, [repoPath, source, onReady, onBack, run]);
 
   const retry = () => rows && run(rows.filter((r) => r.state !== 'installed').map((r) => r.pin));
@@ -72,11 +75,7 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
     <main className="screen">
       <TopBar title={t('resourcesTitle')} onBack={onBack} />
       <p className="muted">{t('resourcesIntro')}</p>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <ErrorLine text={failure(install)} />
       {rows?.map((r) => (
         <div className="row" key={`${r.pin.repoPath}@${r.pin.sha}`}>
           <span>{labelOf(r.pin)}</span>
