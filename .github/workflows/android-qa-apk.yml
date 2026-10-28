@@ -5,6 +5,10 @@ name: Android QA APK
 
 on:
   pull_request:
+  # A run on main saves its caches where every pull request can restore them; a cache saved
+  # by a pull request is only visible to later runs of that same pull request.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -48,21 +52,23 @@ jobs:
           # Its default list includes `tools`, which the SDK repository no longer serves.
           packages: platform-tools
 
-      # The NDK is a large download that once arrived corrupt; the platform and build tools ride
-      # along so the build does not depend on what the runner image happens to ship.
-      - name: Cache the Android platform, build tools and NDK
-        id: android-sdk
+      # The NDK is a large download that once arrived corrupt, so it is cached. The platform and
+      # build tools are not: the runner image ships them owned by root, and restoring over them
+      # makes the whole restore fail. sdkmanager downloads them only if the image lacks them.
+      - name: Cache the Android NDK
+        id: android-ndk
         uses: actions/cache@v6
         with:
-          path: |
-            ${{ env.ANDROID_SDK_ROOT }}/platforms/android-34
-            ${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0
-            ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}
-          key: android-sdk-${{ runner.os }}-platform-34-build-tools-34.0.0-ndk-${{ env.NDK_VERSION }}
+          path: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}
+          key: android-ndk-${{ runner.os }}-${{ env.NDK_VERSION }}
 
       - name: Install the Android platform, build tools and NDK
-        if: steps.android-sdk.outputs.cache-hit != 'true'
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;${NDK_VERSION}"
+        env:
+          NDK_CACHED: ${{ steps.android-ndk.outputs.cache-hit }}
+        run: |
+          packages=("platforms;android-34" "build-tools;34.0.0")
+          if [ "$NDK_CACHED" != "true" ]; then packages+=("ndk;${NDK_VERSION}"); fi
+          sdkmanager "${packages[@]}"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
