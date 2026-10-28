@@ -13,6 +13,9 @@ type Props = {
   host: string;
   onOpen: (repoPath: string) => void;
   onSignOut: () => void;
+  /** Projects (`owner/name`) whose clone is still running, also from before a sign-out. */
+  cloning: ReadonlySet<string>;
+  onCloning: (key: string, running: boolean) => void;
 };
 
 /** The local repo path of a Door43 repo, if this device holds it (paths compare case-insensitively, as DCS does). */
@@ -38,7 +41,7 @@ function SignOut({ onSignOut }: { onSignOut: () => void }) {
   );
 }
 
-export default function ProjectList({ api, source, session, host, onOpen, onSignOut }: Props) {
+export default function ProjectList({ api, source, session, host, onOpen, onSignOut, cloning, onCloning }: Props) {
   const [repos, setRepos] = useState<Door43Repo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -65,8 +68,13 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     try {
       let repoPath = localPathOf(await source.listLocal(), host, repo);
       if (!repoPath) {
-        await source.enableNet();
-        repoPath = await source.clone(host, repo.owner, repo.name);
+        onCloning(`${repo.owner}/${repo.name}`, true);
+        try {
+          await source.enableNet();
+          repoPath = await source.clone(host, repo.owner, repo.name);
+        } finally {
+          onCloning(`${repo.owner}/${repo.name}`, false);
+        }
       }
       if (!(await source.readResources(repoPath))) {
         setNotTc(true);
@@ -99,7 +107,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       {repos === null && !error && <p className="muted">{t('loadingProjects')}</p>}
       {repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
       {repos?.map((r) => (
-        <button key={`${r.owner}/${r.name}`} className="row project" disabled={busy !== null} onClick={() => open(r)}>
+        <button key={`${r.owner}/${r.name}`} className="row project" disabled={busy !== null || cloning.has(`${r.owner}/${r.name}`)} onClick={() => open(r)}>
           <span className="project-text">
             <span className="project-name">{r.name}</span>
             <span className="muted">
@@ -107,7 +115,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
               {r.description ? ` · ${r.description}` : ''}
             </span>
           </span>
-          <span className="muted">{busy === `${r.owner}/${r.name}` ? t('opening') : '›'}</span>
+          <span className="muted">{busy === `${r.owner}/${r.name}` || cloning.has(`${r.owner}/${r.name}`) ? t('opening') : '›'}</span>
         </button>
       ))}
     </main>
