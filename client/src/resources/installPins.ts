@@ -137,6 +137,15 @@ export class DownloadStopped extends Error {
   }
 }
 
+/** A download Door43 answered, but that cannot be installed: the version is not there, or the archive is not
+ * the pinned commit. The message is the raw detail; the reason is what the screen tells the checker. */
+export class DownloadFailed extends Error {
+  constructor(readonly reason: 'notFound' | 'mismatch', message: string) {
+    super(message);
+    this.name = 'DownloadFailed';
+  }
+}
+
 /** The release tag that names a commit, read page by page from the DCS tags API (tC4 tagForCommitSha),
  * or null when no tag names it or DCS cannot be asked. */
 const tagForSha = async (pin: ResourcePin, fetchFn: typeof fetch): Promise<string | null> => {
@@ -186,6 +195,7 @@ const downloadAndInstall = async (pin: ResourcePin, source: ProjectSource, fetch
   let bytes: Uint8Array;
   try {
     const res = await fetchFn(url);
+    if (res.status === 404) throw new DownloadFailed('notFound', `could not download ${url} (HTTP 404)`);
     if (!res.ok) throw new Error(`could not download ${url} (HTTP ${res.status})`);
     bytes = new Uint8Array(await res.arrayBuffer());
   } catch (e) {
@@ -195,7 +205,7 @@ const downloadAndInstall = async (pin: ResourcePin, source: ProjectSource, fetch
   const { files, metadata } = unwrap(bytes);
   const revision = tag ? declaredRevision(metadata) : zipArchiveComment(bytes);
   if (revision !== pin.sha)
-    throw new Error(`${pin.repoPath} ${pin.version ?? ''} is commit ${revision?.slice(0, 12) ?? 'unknown'}…, but the project pins ${pin.sha.slice(0, 12)}… — not installed`);
+    throw new DownloadFailed('mismatch', `${pin.repoPath} ${pin.version ?? ''} is commit ${revision?.slice(0, 12) ?? 'unknown'}…, but the project pins ${pin.sha.slice(0, 12)}… — not installed`);
   const local = await source.listLocal();
   const installedMeanwhile = await installedPathOf(pin, local, source);
   if (installedMeanwhile) return installedMeanwhile;
