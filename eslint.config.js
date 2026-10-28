@@ -12,7 +12,7 @@ const i18nText = [
 // A Door43 error reaches the checker only through door43ErrorText, which words it in the phone's
 // language. A Door43 error is one thrown by a call on `api` (the Door43 client) or a Door43ApiError.
 const door43Message = [
-  "CallExpression[callee.property.name=/^(then|catch)$/][callee.object.callee.object.name='api'] > :function MemberExpression[property.name='message']",
+  "CallExpression[callee.property.name=/^(then|catch)$/]:has(CallExpression[callee.object.name='api']) > :function MemberExpression[property.name='message']",
   "TryStatement:has(CallExpression[callee.object.name='api']) > CatchClause MemberExpression[property.name='message']",
   "MemberExpression[property.name='message'][object.typeAnnotation.typeName.name='Door43ApiError']",
 ].map((selector) => ({ selector, message: "Show a Door43 error with door43ErrorText(e) from screens/door43Error.ts, not its .message" }));
