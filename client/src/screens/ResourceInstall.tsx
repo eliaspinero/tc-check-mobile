@@ -3,9 +3,10 @@ import type { ResourcePin } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { DownloadStopped, installPin, missingPins } from '../resources/installPins';
 import { t } from '../i18n';
+import { resourceErrorText } from './resourceError';
 import TopBar from './TopBar';
 
-type Row = { pin: ResourcePin; state: 'waiting' | 'downloading' | 'installed' | 'stopped' | 'failed'; message?: string };
+type Row = { pin: ResourcePin; state: 'waiting' | 'downloading' | 'installed' | 'stopped' | 'failed'; reason?: string; message?: string };
 
 const labelOf = (pin: ResourcePin) => `${pin.repoPath.split('/').pop()} ${pin.version ?? pin.sha.slice(0, 7)}`;
 
@@ -37,6 +38,7 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
           row.state = 'installed';
         } catch (e) {
           row.state = e instanceof DownloadStopped ? 'stopped' : 'failed';
+          row.reason = resourceErrorText(e);
           row.message = (e as Error).message;
         }
         show();
@@ -63,6 +65,8 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
 
   const retry = () => rows && run(rows.filter((r) => r.state !== 'installed').map((r) => r.pin));
   const stopped = rows?.some((r) => r.state === 'stopped' || r.state === 'failed');
+  // Connecting helps only a stopped download; a failure Door43 answered needs no internet advice.
+  const offline = rows?.some((r) => r.state === 'stopped');
 
   return (
     <main className="screen">
@@ -85,14 +89,17 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
           </span>
         </div>
       ))}
-      {rows?.filter((r) => r.state === 'failed').map((r) => (
-        <p className="muted" key={`m-${r.pin.repoPath}`}>
-          {r.message}
-        </p>
+      {/* Why each resource did not install, in the checker's language; a failure keeps its raw detail below for
+          support. A stopped download's detail is only its URL, so it shows the reason alone. */}
+      {rows?.filter((r) => r.state === 'stopped' || r.state === 'failed').map((r) => (
+        <div key={`m-${r.pin.repoPath}`}>
+          <p>{`${labelOf(r.pin)}: ${r.reason}`}</p>
+          {r.state === 'failed' && <p className="muted">{r.message}</p>}
+        </div>
       ))}
       {stopped && (
         <>
-          <p>{t('resourceMissing')}</p>
+          <p>{t(offline ? 'resourceMissing' : 'resourceNotInstalled')}</p>
           <button className="primary" onClick={retry}>
             {t('tryAgain')}
           </button>

@@ -30,6 +30,10 @@ export const en = {
   downloadStopped: 'Download stopped',
   notInstalled: 'Not installed',
   resourceMissing: "This resource isn't on this device yet. Connect to the internet and try again, or continue: checks and panes that need it say so.",
+  resourceNotInstalled: 'You can continue: checks and panes that need it say so.',
+  resourceNotOnDoor43: "This version isn't on Door43.",
+  resourceMismatch: "The downloaded file isn't the version the project pins, so it wasn't installed.",
+  resourceInstallFailed: 'It could not be installed.',
   tryAgain: 'Try again',
   continue: 'Continue',
 
