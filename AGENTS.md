@@ -35,7 +35,10 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
   ripgrep where graft is absent) and reuse or extend it instead of adding a second one.
 - A flow's loading, running and failure live in one closed state (`Load<T>` or `Run<R>` in
   `client/src/screens/load.ts`); ESLint catches the usual flags. A toggle that is only about the
-  interface (a dialog open, a confirm armed) stays its own boolean.
+  interface (a dialog open, a confirm armed) stays its own boolean. Any other new boolean next to a
+  flow's state is justified in the pull request.
+- A flow with many steps and ways back (for example slice 2's write and two-way sync, #9) decides in
+  its plan whether a state machine library such as XState is worth it, or `Load`/`Run` are enough.
 - Before the pull request, review the branch's diff for code to reuse and to simplify, and apply what
   it finds (in Claude Code: `/simplify`).
 
