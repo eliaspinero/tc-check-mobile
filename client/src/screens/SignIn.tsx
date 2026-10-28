@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Door43Api, Door43Session } from '../door43/door43Api';
 import type { TokenStore } from '../door43/tokenStore';
+import { t } from '../i18n';
+import { door43ErrorText } from './door43Error';
 
 export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; store: TokenStore; onSignedIn: (s: Door43Session) => void }) {
   const [login, setLogin] = useState('');
@@ -11,7 +13,7 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!login.trim() || !password) {
-      setError('Enter your username and password.');
+      setError(t('enterCredentials'));
       return;
     }
     setBusy(true);
@@ -22,7 +24,7 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
       await store.keep(session.token);
       onSignedIn(session);
     } catch (err) {
-      setError((err as Error).message);
+      setError(door43ErrorText(err, true));
     } finally {
       setBusy(false);
     }
@@ -30,13 +32,17 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
 
   return (
     <form className="screen" onSubmit={submit}>
-      <h1>Sign in to Door43</h1>
+      <header className="topbar" role="banner">
+        <div className="topbar-place">
+          <h1>{t('signInTitle')}</h1>
+        </div>
+      </header>
       <label>
-        Username or email
+        {t('username')}
         <input autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} />
       </label>
       <label>
-        Password
+        {t('password')}
         <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
       {error && (
@@ -45,7 +51,7 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
         </p>
       )}
       <button className="primary" type="submit" disabled={busy}>
-        {busy ? 'Signing in…' : 'Sign in'}
+        {busy ? t('signingIn') : t('signIn')}
       </button>
     </form>
   );

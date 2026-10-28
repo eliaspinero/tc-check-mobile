@@ -2,26 +2,24 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
+import { t } from '../i18n';
+import type { Strings } from '../i18n/en';
+import { bookName, toolName } from '../i18n/books';
+import TopBar from './TopBar';
+import ChapterGrid from './ChapterGrid';
+import { chapterStates, refOf } from './chapters';
 
-const STATE_TEXT: Record<Exclude<Session['state'], 'ready'>, string> = {
-  unavailable: "The pinned version isn't on this device yet. Go back to the project to download it; nothing else stops.",
-  unpinned: 'This project has no resources pinned for this tool yet.',
-  'not-covered': 'Neither language set of this project covers this book for this tool.',
-  'old-twl': 'This project pins the old one-repo translationWords form, which is no longer read. Create the project again in translationCore.',
-  'versification-unavailable': "The numbering data this project needs could not be loaded. Nothing is lost. Open the book again, and the checks will appear.",
-  'versification-unknown': "This project's versification could not be identified, so its checks cannot be lined up with its numbering. Check this book in translationCore on a computer.",
-  'versification-unsupported': '',
+const STATE_KEY: Record<Exclude<Session['state'], 'ready'>, keyof Strings> = {
+  unavailable: 'stateUnavailable',
+  unpinned: 'stateUnpinned',
+  'not-covered': 'stateNotCovered',
+  'old-twl': 'stateOldTwl',
+  'versification-unavailable': 'stateVersificationUnavailable',
+  'versification-unknown': 'stateVersificationUnknown',
+  'versification-unsupported': 'stateVersificationUnsupported',
 };
 
-const stateText = (session: Session): string =>
-  session.state === 'versification-unsupported'
-    ? `This project numbers its verses with the ${session.scheme} versification. The phone checks only projects in the default eng numbering for now. Check this book in translationCore on a computer.`
-    : STATE_TEXT[session.state as Exclude<Session['state'], 'ready'>];
-
-const refOf = (item: CheckItem): string => {
-  const r = item.contextId.reference as { chapter?: unknown; verse?: unknown };
-  return `${String(r.chapter)}:${String(r.verse)}`;
-};
+const stateText = (session: Session): string => t(STATE_KEY[session.state as Exclude<Session['state'], 'ready'>], { scheme: session.scheme ?? '' });
 
 type Props = {
   repoPath: string;
@@ -29,14 +27,18 @@ type Props = {
   book: string;
   source: ProjectSource;
   engine: CheckingEngine;
+  /** The check the checker comes back from: its chapter shows and its verse opens. */
+  focus?: number;
   onOpen: (session: Session, index: number) => void;
   onBack: () => void;
 };
 
-export default function CheckList({ repoPath, tool, book, source, engine, onOpen, onBack }: Props) {
+export default function CheckList({ repoPath, tool, book, source, engine, focus, onOpen, onBack }: Props) {
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [chapter, setChapter] = useState<number | null>(null);
+  const [picking, setPicking] = useState(false);
 
   const load = useCallback(() => {
     setError(null);
@@ -59,16 +61,35 @@ export default function CheckList({ repoPath, tool, book, source, engine, onOpen
     }
   };
 
+  const items = session?.state === 'ready' ? session.items : [];
+  const focused = focus !== undefined ? items[focus] : undefined;
+  // The chapter shown: the one picked, else the focused check's, else the first with checks.
+  const shown = chapter ?? (focused ? refOf(focused).chapter : items.length ? refOf(items[0]).chapter : 1);
+  const verses: Array<{ verse: string; checks: Array<{ item: CheckItem; index: number }> }> = [];
+  items.forEach((item, index) => {
+    const ref = refOf(item);
+    if (ref.chapter !== shown) return;
+    const last = verses[verses.length - 1];
+    if (last?.verse === ref.verse) last.checks.push({ item, index });
+    else verses.push({ verse: ref.verse, checks: [{ item, index }] });
+  });
+  const openVerse = focused && refOf(focused).chapter === shown ? refOf(focused).verse : verses[0]?.verse;
+  const chapterProgress = engine.progress(verses.flatMap((v) => v.checks.map((c) => c.item)));
+  const title = `${bookName(book)} ${shown}`;
+
   return (
     <main className="screen">
-      <div className="check-top">
-        <h1>
-          {book} · {tool}
-        </h1>
-        <button onClick={sync} disabled={syncing}>
-          {syncing ? 'Syncing…' : 'Sync'}
-        </button>
-      </div>
+      <TopBar
+        title={title}
+        sub={toolName(tool)}
+        onBack={onBack}
+        onTitle={session?.state === 'ready' ? () => setPicking(true) : undefined}
+        actions={
+          <button onClick={sync} disabled={syncing}>
+            {syncing ? t('syncing') : t('sync')}
+          </button>
+        }
+      />
       {error && (
         <p className="error" role="alert">
           {error}
@@ -77,25 +98,54 @@ export default function CheckList({ repoPath, tool, book, source, engine, onOpen
       {session && session.state !== 'ready' && <p>{stateText(session)}</p>}
       {session?.state === 'ready' && (
         <>
-          <p data-testid="progress">
-            {session.progress.decided} of {session.progress.total} checked
-          </p>
+          <div className="progress-lines">
+            <p data-testid="chapter-progress">{t('chapterProgress', { chapter: shown, ...chapterProgress })}</p>
+            <p className="muted" data-testid="progress">
+              {t('progress', session.progress)}
+            </p>
+          </div>
           {session.dropped && (
             <p className="muted" data-testid="dropped">
-              {session.dropped.count} checks can't be placed in this project's numbering ({session.dropped.scheme}) and are not counted.
+              {t('dropped', session.dropped)}
             </p>
           )}
-          {session.items.map((item, i) => (
-            <button key={`${item.contextId.checkId}-${i}`} className="row" data-testid="check-row" onClick={() => onOpen(session, i)}>
-              <span>
-                {refOf(item)} · {item.contextId.groupId}
-              </span>
-              <span className="muted">{item.selections !== false ? 'Checked' : ''}</span>
-            </button>
-          ))}
+          <div className="verses" key={shown}>
+            {verses.map(({ verse, checks }) => {
+              const p = engine.progress(checks.map((c) => c.item));
+              return (
+                <details key={verse} className="verse" data-testid="verse" open={verse === openVerse}>
+                  <summary>
+                    <span>
+                      {shown}:{verse} · {t('verseProgress', p)}
+                    </span>
+                    {p.decided === p.total && <span className="done-mark" aria-hidden="true">✓</span>}
+                  </summary>
+                  {checks.map(({ item, index }) => {
+                    const done = engine.progress([item]).decided === 1;
+                    return (
+                      <button key={`${item.contextId.checkId}-${index}`} className="row check-row" data-testid="check-row" onClick={() => onOpen(session, index)}>
+                        <span>{item.contextId.groupId}</span>
+                        <span className="muted">{done ? t('checked') : ''}</span>
+                      </button>
+                    );
+                  })}
+                </details>
+              );
+            })}
+          </div>
         </>
       )}
-      <button onClick={onBack}>Back</button>
+      {picking && (
+        <ChapterGrid
+          chapters={chapterStates(book, items, engine)}
+          current={shown}
+          onPick={(c) => {
+            setChapter(c);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </main>
   );
 }

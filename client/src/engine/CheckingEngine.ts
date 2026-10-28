@@ -8,8 +8,9 @@ import type { ResourcePin, ResourcesFile } from '../checking/types';
 import type { Selection } from '../checking/selections';
 import type { SourceToken } from '../checking/sourceHighlight';
 import type { ProjectFrame } from '../checking/projectFrame';
+import type { ArticleBlock, ArticleSpan } from '../checking/markdown';
 
-export type { ProjectFrame };
+export type { ArticleBlock, ArticleSpan, ProjectFrame };
 export type { CheckItem, DerivedBook, DerivedVerse, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
 
 export interface DeriveInput {
@@ -54,4 +55,6 @@ export interface CheckingEngine {
   sourceTokens(verse: { verseObjects?: VerseObject[] } | undefined, quote: string | Array<{ word: string }>, occurrence: number): { tokens: SourceToken[]; highlighted: number[] };
   /** The target verse's words, and the indices of the stored selection. */
   targetTokens(verseText: string, selections: Selection[] | false | undefined): { tokens: string[]; selected: number[] };
+  /** A help's markdown as blocks (headings, paragraphs, list items) of styled spans (tC4 renderArticleBlocks). */
+  articleBlocks(markdown: string): ArticleBlock[];
 }

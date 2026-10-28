@@ -13,12 +13,13 @@ import { pankosmiaSource } from './project/pankosmiaSource';
 import { tsEngine } from './engine/tsEngine';
 import type { Tool } from './engine/CheckingEngine';
 import type { Session } from './session/loadSession';
+import { t } from './i18n';
 
 type Screen =
   | { name: 'projects' }
   | { name: 'install'; repoPath: string }
   | { name: 'books'; repoPath: string }
-  | { name: 'list'; repoPath: string; book: string; tool: Tool }
+  | { name: 'list'; repoPath: string; book: string; tool: Tool; focus?: number }
   | { name: 'check'; repoPath: string; book: string; tool: Tool; session: Session; index: number };
 
 export default function App() {
@@ -50,10 +51,21 @@ export default function App() {
       .finally(() => setRestoring(false));
   }, [api, store]);
 
+  // Sign out: the kept token leaves this device and the sign-in form shows. No Door43 call, as tC4's signOut.
+  const signOut = () => {
+    store
+      .forget()
+      .catch(() => undefined)
+      .finally(() => {
+        setSession(null);
+        setScreen({ name: 'projects' });
+      });
+  };
+
   if (restoring)
     return (
       <main className="screen">
-        <p className="muted">Signing you in…</p>
+        <p className="muted">{t('signingYouIn')}</p>
       </main>
     );
   if (!session) return <SignIn api={api} store={store} onSignedIn={setSession} />;
@@ -73,6 +85,7 @@ export default function App() {
         <BookPicker
           repoPath={screen.repoPath}
           source={source}
+          engine={engine}
           onPick={(book, tool) => setScreen({ name: 'list', repoPath: screen.repoPath, book, tool })}
           onBack={() => setScreen({ name: 'projects' })}
         />
@@ -85,6 +98,7 @@ export default function App() {
           tool={screen.tool}
           source={source}
           engine={engine}
+          focus={screen.focus}
           onOpen={(s, index) => setScreen({ ...screen, name: 'check', session: s, index })}
           onBack={() => setScreen({ name: 'books', repoPath: screen.repoPath })}
         />
@@ -100,10 +114,10 @@ export default function App() {
           source={source}
           engine={engine}
           onIndex={(index) => setScreen({ ...screen, index })}
-          onBack={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool })}
+          onBack={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index })}
         />
       );
     default:
-      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => setScreen({ name: 'install', repoPath })} />;
+      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => setScreen({ name: 'install', repoPath })} onSignOut={signOut} />;
   }
 }

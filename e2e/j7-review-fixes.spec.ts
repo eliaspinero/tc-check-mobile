@@ -85,7 +85,7 @@ test('j7: a pin without its book list still resolves from the installed resource
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeProjectWithoutPinBooks('qa.door43.org/checker1/no_pin_books');
   await openProject(page, context, 'no_pin_books');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
   await expect(page.getByTestId('progress')).toHaveText(/^\d+ of \d+ checked$/);
 });
 
@@ -97,8 +97,8 @@ test('j7: a slow tW article never shows under another check', async ({ page, con
     await route.continue();
   });
   await openProject(page, context, 'sample_burrito');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^1:1 · god(Checked)?$/ }).first().click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
   const box = (await page.getByTestId('check-screen').boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
   await page.mouse.down();

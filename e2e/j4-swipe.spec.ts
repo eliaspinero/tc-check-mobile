@@ -20,7 +20,7 @@ test('j4: swipe moves between checks and stops at both ends', async ({ page, con
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeRepo(SAMPLE_PROJECT, 'qa.door43.org/checker1/sample_burrito');
   await openProject(page, context, 'sample_burrito');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
   await page.getByTestId('check-row').first().click();
   expect((await position(page)).at).toBe(1);
   await swipe(page, 'left');
@@ -31,6 +31,9 @@ test('j4: swipe moves between checks and stops at both ends', async ({ page, con
   await expect(page.getByTestId('check-header')).toHaveText(/ 1 \/ \d+$/);
 
   await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Titus 1' }).click();
+  await page.getByRole('dialog', { name: 'Chapters' }).getByRole('button', { name: /^Chapter 3/ }).click();
+  await page.getByTestId('verse').last().locator('summary').click();
   await page.getByTestId('check-row').last().click();
   const last = await position(page);
   expect(last.at).toBe(last.of);
@@ -45,8 +48,8 @@ test('j4: a right-to-left target renders rtl with the selection on the right wor
   const settings = JSON.parse((await readIngredient(project, 'checking/settings.json').catch(() => '{}')) || '{}') as Record<string, unknown>;
   await writeIngredient(project, 'checking/settings.json', JSON.stringify({ ...settings, textDirection: 'rtl' }, null, 2));
   await openProject(page, context, 'sample_rtl');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^1:1 · god(Checked)?$/ }).first().click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
   await expect(page.getByTestId('target')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByTestId('target').locator('[data-sel]')).toHaveText(['Dios']);
 });

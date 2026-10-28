@@ -4,6 +4,7 @@ import { matchQuote, tokenizeVerse } from '../checking/sourceHighlight';
 import { targetWords, tokenIndicesFromSelections } from '../checking/selections';
 import { withSpanMembers } from '../checking/spanMembers';
 import { resolveProjectFrame } from '../checking/projectFrame';
+import { renderArticleBlocks } from '../checking/markdown';
 import type { CheckingEngine } from './CheckingEngine';
 
 export const tsEngine: CheckingEngine = {
@@ -45,4 +46,5 @@ export const tsEngine: CheckingEngine = {
     tokens: targetWords(verseText),
     selected: tokenIndicesFromSelections(verseText, selections),
   }),
+  articleBlocks: (markdown) => renderArticleBlocks(markdown),
 };

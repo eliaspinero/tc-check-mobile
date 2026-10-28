@@ -16,22 +16,29 @@ test('j3: TIT tW lists its checks with progress that counts the stored decisions
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeRepo(SAMPLE_PROJECT, PROJECT);
   await openProject(page, context, 'sample_burrito');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
-  await expect(page.getByRole('heading', { name: 'TIT · translationWords' })).toBeVisible();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await expect(page.getByRole('heading', { name: 'Titus 1' })).toBeVisible();
   const progress = page.getByTestId('progress');
   await expect(progress).toHaveText(/^\d+ of \d+ checked$/);
   const [decided, total] = ((await progress.textContent()) ?? '').match(/\d+/g)!.map(Number);
   expect(decided).toBe(await decidedIn('translationWords', 'TIT'));
   expect(total).toBeGreaterThan(decided);
-  await expect(page.getByTestId('check-row')).toHaveCount(total);
+  // The list shows one chapter at a time: the chapters' rows add up to the book's total.
+  let rows = 0;
+  for (const chapter of [1, 2, 3]) {
+    await page.getByRole('button', { name: /^Titus \d+$/ }).click();
+    await page.getByRole('dialog', { name: 'Chapters' }).getByRole('button', { name: new RegExp(`^Chapter ${chapter}`) }).click();
+    rows += await page.getByTestId('check-row').count();
+  }
+  expect(rows).toBe(total);
 });
 
 test('j3: TIT tN lists its checks too', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeRepo(SAMPLE_PROJECT, PROJECT);
   await openProject(page, context, 'sample_burrito');
-  await page.getByRole('button', { name: 'TIT translationNotes' }).click();
-  await expect(page.getByRole('heading', { name: 'TIT · translationNotes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Titus Notes' }).click();
+  await expect(page.getByRole('heading', { name: 'Titus 1' })).toBeVisible();
   const [decided, total] = ((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/g)!.map(Number);
   expect(decided).toBe(await decidedIn('translationNotes', 'TIT'));
   expect(total).toBeGreaterThan(0);
@@ -41,9 +48,11 @@ test('j3: the check screen highlights the quote in ULT and UST and the stored se
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeRepo(SAMPLE_PROJECT, PROJECT);
   await openProject(page, context, 'sample_burrito');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^1:1 · god(Checked)?$/ }).first().click();
-  await expect(page.getByTestId('check-header')).toHaveText(/^TIT 1:1 · tW · \d+ \/ \d+$/);
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
+  await expect(page.getByTestId('check-title')).toHaveText('Titus 1:1');
+  await expect(page.getByTestId('check-header')).toHaveText(/^Words · \d+ \/ \d+$/);
+  await page.getByTestId('help').getByRole('button').click();
   await expect(page.getByTestId('help-title')).toHaveText('Dios');
   await expect(page.getByTestId('help-body')).toContainText('Definición');
   await expect(page.getByTestId('help-body')).not.toContainText('#');
@@ -68,7 +77,7 @@ test('j3: Sync pulls Door43 main and the list shows the new decision', async ({ 
   await addOrigin(project, pathToFileURL(`${repos}/${upstream}`).href);
 
   await openProject(page, context, 'sync_project');
-  await page.getByRole('button', { name: 'TIT translationWords' }).click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
   const before = Number(((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/)![0]);
 
   // A teammate's decision lands on Door43 main: Paul in 1:1 (TWL row trr8) selected as "Pablo".

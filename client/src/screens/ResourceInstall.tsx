@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ResourcePin } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { DownloadStopped, installPin, missingPins } from '../resources/installPins';
+import { t } from '../i18n';
+import TopBar from './TopBar';
 
 type Row = { pin: ResourcePin; state: 'waiting' | 'downloading' | 'installed' | 'stopped' | 'failed'; message?: string };
 
@@ -64,8 +66,8 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
 
   return (
     <main className="screen">
-      <h1>Getting resources</h1>
-      <p className="muted">This project checks against these resources. They download once, then work offline.</p>
+      <TopBar title={t('resourcesTitle')} onBack={onBack} />
+      <p className="muted">{t('resourcesIntro')}</p>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -75,11 +77,11 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
         <div className="row" key={`${r.pin.repoPath}@${r.pin.sha}`}>
           <span>{labelOf(r.pin)}</span>
           <span className="muted">
-            {r.state === 'waiting' && 'Waiting'}
-            {r.state === 'downloading' && 'Downloading…'}
-            {r.state === 'installed' && 'Installed'}
-            {r.state === 'stopped' && 'Download stopped'}
-            {r.state === 'failed' && 'Not installed'}
+            {r.state === 'waiting' && t('waiting')}
+            {r.state === 'downloading' && t('downloading')}
+            {r.state === 'installed' && t('installed')}
+            {r.state === 'stopped' && t('downloadStopped')}
+            {r.state === 'failed' && t('notInstalled')}
           </span>
         </div>
       ))}
@@ -90,14 +92,13 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
       ))}
       {stopped && (
         <>
-          <p>This resource isn't on this device yet. Connect to the internet and try again, or continue: checks and panes that need it say so.</p>
+          <p>{t('resourceMissing')}</p>
           <button className="primary" onClick={retry}>
-            Try again
+            {t('tryAgain')}
           </button>
-          <button onClick={onReady}>Continue</button>
+          <button onClick={onReady}>{t('continue')}</button>
         </>
       )}
-      <button onClick={onBack}>Back</button>
     </main>
   );
 }
