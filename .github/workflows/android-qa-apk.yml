@@ -5,6 +5,10 @@ name: Android QA APK
 
 on:
   pull_request:
+  # A run on main saves its caches where every pull request can restore them; a cache saved
+  # by a pull request is only visible to later runs of that same pull request.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -23,9 +27,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -38,18 +42,33 @@ jobs:
           npm ci
           node scripts/build-client-into-shell.mjs --qa
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           # Its default list includes `tools`, which the SDK repository no longer serves.
           packages: platform-tools
 
+      # The NDK is a large download that once arrived corrupt, so it is cached. The platform and
+      # build tools are not: the runner image ships them owned by root, and restoring over them
+      # makes the whole restore fail. sdkmanager downloads them only if the image lacks them.
+      - name: Cache the Android NDK
+        id: android-ndk
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ env.NDK_VERSION }}
+          key: android-ndk-${{ runner.os }}-${{ env.NDK_VERSION }}
+
       - name: Install the Android platform, build tools and NDK
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;${NDK_VERSION}"
+        env:
+          NDK_CACHED: ${{ steps.android-ndk.outputs.cache-hit }}
+        run: |
+          packages=("platforms;android-34" "build-tools;34.0.0")
+          if [ "$NDK_CACHED" != "true" ]; then packages+=("ndk;${NDK_VERSION}"); fi
+          sdkmanager "${packages[@]}"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -61,7 +80,7 @@ jobs:
 
       - name: Cache OpenSSL for Android
         id: openssl
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: shell/src-tauri/src/openssl/libs
           key: openssl-android-arm64-${{ env.OPENSSL_VERSION }}-ndk-${{ env.NDK_VERSION }}
@@ -102,7 +121,7 @@ jobs:
           rm -f run.keystore aligned.apk
           ls -lh apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tc-check-qa-apk
           path: shell/apk/*.apk
