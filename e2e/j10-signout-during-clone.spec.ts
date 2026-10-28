@@ -46,3 +46,38 @@ test('j10: sign out during a clone, and the project does not open when the clone
   await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Choose a book' })).toHaveCount(0);
 });
+
+test('j10: sign out during a clone and sign in again, and the project does not open when the clone ends after that', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await deleteRepoIfPresent(PROJECT);
+  await fakeDoor43(context, { user: USER, repos: [{ owner: USER.username, name: 'sample_signout' }] });
+
+  // The clone waits until the checker has signed in again.
+  let release: () => void = () => undefined;
+  const signedInAgain = new Promise<void>((r) => (release = r));
+  await context.route('**/api/git/clone-repo/**', async (route) => {
+    await signedInAgain;
+    await placeRepo(SAMPLE_PROJECT, PROJECT);
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ is_good: true, reason: 'ok' }) });
+  });
+
+  const signIn = async () => {
+    await page.getByLabel('Username or email').fill(USER.username);
+    await page.getByLabel('Password').fill(USER.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+  };
+  await page.goto(CLIENT_URL);
+  await signIn();
+  await page.getByRole('button', { name: /^sample_signout/ }).click();
+  await expect(page.getByText('Opening…')).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Tap again to sign out' }).click();
+  await signIn();
+  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+
+  const resourcesRead = page.waitForResponse((r) => r.url().includes('resources.json'));
+  release();
+  await resourcesRead;
+  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose a book' })).toHaveCount(0);
+});
