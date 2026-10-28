@@ -38,6 +38,15 @@ export default function App() {
   useEffect(() => {
     live.current = session;
   }, [session]);
+  // Clones still running, kept across sign-out so signing in again does not start a second clone of the same project.
+  const [cloning, setCloning] = useState<ReadonlySet<string>>(new Set());
+  const onCloning = (key: string, running: boolean) =>
+    setCloning((prev) => {
+      const next = new Set(prev);
+      if (running) next.add(key);
+      else next.delete(key);
+      return next;
+    });
 
   // A token kept from an earlier session signs the checker in again. Only Door43's own refusal (401/403)
   // forgets it; with no internet the checker keeps working on the projects already on this device.
@@ -124,6 +133,6 @@ export default function App() {
         />
       );
     default:
-      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => live.current === session && setScreen({ name: 'install', repoPath })} onSignOut={signOut} />;
+      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => live.current === session && setScreen({ name: 'install', repoPath })} onSignOut={signOut} cloning={cloning} onCloning={onCloning} />;
   }
 }

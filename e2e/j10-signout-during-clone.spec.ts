@@ -81,3 +81,43 @@ test('j10: sign out during a clone and sign in again, and the project does not o
   await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Choose a book' })).toHaveCount(0);
 });
+
+test('j10: signed in again while the first clone runs, the project row waits for it instead of starting a second clone', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await deleteRepoIfPresent(PROJECT);
+  await fakeDoor43(context, { user: USER, repos: [{ owner: USER.username, name: 'sample_signout' }] });
+
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => (release = r));
+  let clones = 0;
+  await context.route('**/api/git/clone-repo/**', async (route) => {
+    clones++;
+    await held;
+    await placeRepo(SAMPLE_PROJECT, PROJECT);
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ is_good: true, reason: 'ok' }) });
+  });
+
+  const signIn = async () => {
+    await page.getByLabel('Username or email').fill(USER.username);
+    await page.getByLabel('Password').fill(USER.password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+  };
+  await page.goto(CLIENT_URL);
+  await signIn();
+  const row = page.getByRole('button', { name: /^sample_signout/ });
+  await row.click();
+  await expect(page.getByText('Opening…')).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Tap again to sign out' }).click();
+  await signIn();
+  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+
+  // The first clone still runs: its row says so and cannot start another.
+  await expect(row).toBeDisabled();
+  await expect(row).toContainText('Opening…');
+  release();
+  await expect(row).toBeEnabled();
+  await row.click();
+  await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
+  expect(clones).toBe(1);
+});
