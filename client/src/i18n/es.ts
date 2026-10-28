@@ -42,6 +42,8 @@ export const es: Strings = {
   booksTitle: 'Elige un libro',
   words: 'Palabras',
   notes: 'Notas',
+  bookToolProgress: '{name}, {decided} de {total}',
+  bookToolLoading: '{name}, cargando',
 
   sync: 'Sincronizar',
   syncing: 'Sincronizando…',

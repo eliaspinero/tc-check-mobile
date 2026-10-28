@@ -40,6 +40,8 @@ export const en = {
   booksTitle: 'Choose a book',
   words: 'Words',
   notes: 'Notes',
+  bookToolProgress: '{name}, {decided} of {total}',
+  bookToolLoading: '{name}, loading',
 
   sync: 'Sync',
   syncing: 'Syncing…',

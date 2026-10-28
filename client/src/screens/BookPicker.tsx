@@ -13,8 +13,8 @@ type Props = { repoPath: string; source: ProjectSource; engine: CheckingEngine; 
 export default function BookPicker({ repoPath, source, engine, onPick, onBack }: Props) {
   const [books, setBooks] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // `${book} ${tool}` → "decided / total", or "–" when the list cannot be shown (the list says why).
-  const [progress, setProgress] = useState<Record<string, string>>({});
+  // `${book} ${tool}` → its progress, or null when the list cannot be shown (the list says why).
+  const [progress, setProgress] = useState<Record<string, { decided: number; total: number } | null>>({});
 
   useEffect(() => {
     source.readMetadata(repoPath).then(
@@ -30,12 +30,12 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
     (async () => {
       for (const book of books)
         for (const tool of TOOLS) {
-          const text = await loadSession(repoPath, tool, book, source, engine).then(
-            (s) => (s.state === 'ready' ? `${s.progress.decided} / ${s.progress.total}` : '–'),
-            () => '–',
+          const counts = await loadSession(repoPath, tool, book, source, engine).then(
+            (s) => (s.state === 'ready' ? s.progress : null),
+            () => null,
           );
           if (!current) return;
-          setProgress((p) => ({ ...p, [`${book} ${tool}`]: text }));
+          setProgress((p) => ({ ...p, [`${book} ${tool}`]: counts }));
         }
     })();
     return () => {
@@ -55,14 +55,22 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
         <div key={book} className="book">
           <span className="book-name">{bookName(book)}</span>
           <span className="book-tools">
-            {TOOLS.map((tool) => (
-              <button key={tool} className="tool" aria-label={`${bookName(book)} ${toolName(tool)}`} onClick={() => onPick(book, tool)}>
-                <span>{toolName(tool)}</span>
-                <span className="muted" data-testid="book-progress">
-                  {progress[`${book} ${tool}`] ?? '…'}
-                </span>
-              </button>
-            ))}
+            {TOOLS.map((tool) => {
+              const key = `${book} ${tool}`;
+              const counts = progress[key];
+              const name = `${bookName(book)} ${toolName(tool)}`;
+              // The label replaces the button's content for a screen reader, so it says the progress too.
+              const label =
+                counts === undefined ? t('bookToolLoading', { name }) : counts === null ? name : t('bookToolProgress', { name, ...counts });
+              return (
+                <button key={tool} className="tool" aria-label={label} onClick={() => onPick(book, tool)}>
+                  <span>{toolName(tool)}</span>
+                  <span className="muted" data-testid="book-progress">
+                    {counts === undefined ? '…' : counts === null ? '–' : `${counts.decided} / ${counts.total}`}
+                  </span>
+                </button>
+              );
+            })}
           </span>
         </div>
       ))}
