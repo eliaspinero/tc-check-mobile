@@ -47,4 +47,6 @@ export const tsEngine: CheckingEngine = {
     selected: tokenIndicesFromSelections(verseText, selections),
   }),
   articleBlocks: (markdown) => renderArticleBlocks(markdown),
+  // As tC4's ExpandableNote: a TSV note's line breaks arrive escaped (a literal backslash-n).
+  noteBlocks: (note) => renderArticleBlocks(note.replace(/\\n/g, '\n')),
 };

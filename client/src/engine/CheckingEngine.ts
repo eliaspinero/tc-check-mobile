@@ -57,4 +57,6 @@ export interface CheckingEngine {
   targetTokens(verseText: string, selections: Selection[] | false | undefined): { tokens: string[]; selected: number[] };
   /** A help's markdown as blocks (headings, paragraphs, list items) of styled spans (tC4 renderArticleBlocks). */
   articleBlocks(markdown: string): ArticleBlock[];
+  /** A tN note as blocks; its escaped `\n` line breaks split paragraphs (tC4 ExpandableNote). */
+  noteBlocks(note: string): ArticleBlock[];
 }

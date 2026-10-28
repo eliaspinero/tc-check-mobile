@@ -72,7 +72,7 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
   }, [tool, ctx.twPath, category, c.groupId, source, engine]);
 
   const title = tool === 'translationNotes' ? c.groupId : (article?.title ?? c.groupId);
-  const blocks = tool === 'translationNotes' ? engine.articleBlocks(c.occurrenceNote ?? '') : (article?.blocks ?? []);
+  const blocks = tool === 'translationNotes' ? engine.noteBlocks(c.occurrenceNote ?? '') : (article?.blocks ?? []);
   // Closed, the help shows its first block; a heading first shows the paragraph under it.
   const preview = blocks.find((b) => b.kind !== 'h');
 
