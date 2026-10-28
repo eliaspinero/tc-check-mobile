@@ -65,6 +65,8 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
 
   const retry = () => rows && run(rows.filter((r) => r.state !== 'installed').map((r) => r.pin));
   const stopped = rows?.some((r) => r.state === 'stopped' || r.state === 'failed');
+  // Connecting helps only a stopped download; a failure Door43 answered needs no internet advice.
+  const offline = rows?.some((r) => r.state === 'stopped');
 
   return (
     <main className="screen">
@@ -97,7 +99,7 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
       ))}
       {stopped && (
         <>
-          <p>{t('resourceMissing')}</p>
+          <p>{t(offline ? 'resourceMissing' : 'resourceNotInstalled')}</p>
           <button className="primary" onClick={retry}>
             {t('tryAgain')}
           </button>

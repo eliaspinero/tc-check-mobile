@@ -32,6 +32,7 @@ export const es: Strings = {
   downloadStopped: 'Descarga detenida',
   notInstalled: 'No instalado',
   resourceMissing: 'Este recurso todavía no está en el dispositivo. Conéctate a internet e inténtalo de nuevo, o continúa: las revisiones y los paneles que lo necesitan lo indican.',
+  resourceNotInstalled: 'Puedes continuar: las revisiones y los paneles que lo necesitan lo indican.',
   resourceNotOnDoor43: 'Esta versión no está en Door43.',
   resourceMismatch: 'El archivo descargado no es la versión que fija el proyecto, así que no se instaló.',
   resourceInstallFailed: 'No se pudo instalar.',
