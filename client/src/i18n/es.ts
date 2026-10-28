@@ -2,6 +2,7 @@ import type { Strings } from './en';
 
 // The same keys as en.ts, in Spanish.
 export const es: Strings = {
+  appName: 'tC Check',
   back: 'Atrás',
   signingYouIn: 'Entrando…',
 

@@ -101,7 +101,7 @@ test('j9: Previous and Next move between checks across chapters and stop at both
 test('j9: the help opens and closes with its button, and tW and tN helps render markdown', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await openTitusWords(page, context);
-  await page.getByTestId('check-row').filter({ hasText: /^god/ }).first().click();
+  await page.getByTestId('check-row').filter({ hasText: /^Diosof God/ }).first().click();
   const toggle = page.getByRole('button', { name: /Dios/ });
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByTestId('help-body').locator('h3, h4')).toHaveCount(0);

@@ -49,7 +49,7 @@ test('j3: the check screen highlights the quote in ULT and UST and the stored se
   await placeRepo(SAMPLE_PROJECT, PROJECT);
   await openProject(page, context, 'sample_burrito');
   await page.getByRole('button', { name: 'Titus Words' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
+  await page.getByTestId('check-row').filter({ hasText: /^Diosof God(Checked)?$/ }).first().click();
   await expect(page.getByTestId('check-title')).toHaveText('Titus 1:1');
   await expect(page.getByTestId('check-header')).toHaveText(/^Words · \d+ \/ \d+$/);
   await page.getByTestId('help').getByRole('button').click();

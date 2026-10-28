@@ -1,5 +1,6 @@
 // Every text the screens show, in English. es.ts must carry the same keys: its type does not compile without them.
 export const en = {
+  appName: 'tC Check',
   back: 'Back',
   signingYouIn: 'Signing you in…',
 

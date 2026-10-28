@@ -34,6 +34,9 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
     <form className="screen" onSubmit={submit}>
       <header className="topbar" role="banner">
         <div className="topbar-place">
+          <div className="brand" data-testid="app-name">
+            {t('appName')}
+          </div>
           <h1>{t('signInTitle')}</h1>
         </div>
       </header>

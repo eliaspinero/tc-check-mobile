@@ -53,6 +53,8 @@ export interface CheckingEngine {
   verseText(verse: DerivedVerse | undefined): string;
   /** An aligned source verse as display tokens, and the token indices the quote highlights. */
   sourceTokens(verse: { verseObjects?: VerseObject[] } | undefined, quote: string | Array<{ word: string }>, occurrence: number): { tokens: SourceToken[]; highlighted: number[] };
+  /** The words of an aligned source verse that render the quote, in verse order, `…` at a gap (tC4 gatewayQuote); null when none resolve. */
+  gatewayQuote(verse: { verseObjects?: VerseObject[] } | undefined, quote: string | Array<{ word: string }>, occurrence: number): string | null;
   /** The target verse's words, and the indices of the stored selection. */
   targetTokens(verseText: string, selections: Selection[] | false | undefined): { tokens: string[]; selected: number[] };
   /** A help's markdown as blocks (headings, paragraphs, list items) of styled spans (tC4 renderArticleBlocks). */

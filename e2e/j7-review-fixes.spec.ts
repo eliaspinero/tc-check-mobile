@@ -98,7 +98,7 @@ test('j7: a slow tW article never shows under another check', async ({ page, con
   });
   await openProject(page, context, 'sample_burrito');
   await page.getByRole('button', { name: 'Titus Words' }).click();
-  await page.getByTestId('check-row').filter({ hasText: /^god(Checked)?$/ }).first().click();
+  await page.getByTestId('check-row').filter({ hasText: /^Diosof God(Checked)?$/ }).first().click();
   const box = (await page.getByTestId('check-screen').boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
   await page.mouse.down();
