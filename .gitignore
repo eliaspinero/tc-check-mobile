@@ -5,6 +5,9 @@ dist/
 .claude/
 test-results/
 playwright-report/
+# The journeys' rig: its build, and its state (projects, installed resources, the download cache).
+dev-env/rig/target/
+dev-env/state/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/

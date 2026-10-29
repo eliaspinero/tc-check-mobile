@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { pathToFileURL } from 'node:url';
-import { NEEDS_RIG, NEEDS_TC4_DIR, SAMPLE_PROJECT, addOrigin, commitAll, placeRepo, readIngredient, rigReposDir, rigUp, writeIngredient } from './helpers/rig';
+import { NEEDS_RIG, RIG_REPOS_DIR, SAMPLE_PROJECT, addOrigin, commitAll, placeRepo, readIngredient, rigUp, writeIngredient } from './helpers/rig';
 import { openProject } from './helpers/session';
 
 const PROJECT = 'qa.door43.org/checker1/sample_burrito';
@@ -68,13 +68,11 @@ test('j3: the check screen highlights the quote in ULT and UST and the stored se
 
 test('j3: Sync pulls Door43 main and the list shows the new decision', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
-  const repos = rigReposDir();
-  test.skip(!repos, NEEDS_TC4_DIR);
   const upstream = 'qa.door43.org/checker1/sync_upstream';
   const project = 'qa.door43.org/checker1/sync_project';
   await placeRepo(SAMPLE_PROJECT, upstream);
   await placeRepo(SAMPLE_PROJECT, project);
-  await addOrigin(project, pathToFileURL(`${repos}/${upstream}`).href);
+  await addOrigin(project, pathToFileURL(`${RIG_REPOS_DIR}/${upstream}`).href);
 
   await openProject(page, context, 'sync_project');
   await page.getByRole('button', { name: 'Titus Words' }).click();

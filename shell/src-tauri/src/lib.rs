@@ -1,4 +1,5 @@
 mod device;
+mod limits;
 mod ping;
 mod token;
 use git2::opts::set_ssl_cert_file;
@@ -107,7 +108,7 @@ fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     println!("PANKOSMIA: working dir = {}", working_dir);
     println!("PANKOSMIA: conf = {}", conf);
 
-    let rocket = pankosmia_web::rocket(conf).attach(RemoveFrameOptions);
+    let rocket = limits::with_upload_limits(pankosmia_web::rocket(conf)).attach(RemoveFrameOptions);
 
     let rocket_fut = rocket.launch();
     let _ = tauri::async_runtime::spawn(async move {
