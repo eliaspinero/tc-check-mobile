@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { resourceErrorText } from './resourceError';
 import TopBar from './TopBar';
 import ErrorLine from './ErrorLine';
+import Skeleton from './Skeleton';
 import { LOADING, failure, ready, type Load } from './load';
 
 type Row = { pin: ResourcePin; state: 'waiting' | 'downloading' | 'installed' | 'stopped' | 'failed'; reason?: string; message?: string };
@@ -76,6 +77,7 @@ export default function ResourceInstall({ repoPath, source, onReady, onBack }: {
       <TopBar title={t('resourcesTitle')} onBack={onBack} />
       <p className="muted">{t('resourcesIntro')}</p>
       <ErrorLine text={failure(install)} />
+      {install.state === 'loading' && <Skeleton shape="resources" label={t('loadingResources')} />}
       {rows?.map((r) => (
         <div className="row" key={`${r.pin.repoPath}@${r.pin.sha}`}>
           <span>{labelOf(r.pin)}</span>

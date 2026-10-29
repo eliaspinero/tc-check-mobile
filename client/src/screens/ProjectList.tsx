@@ -4,6 +4,8 @@ import type { ProjectSource } from '../project/ProjectSource';
 import { t } from '../i18n';
 import TopBar from './TopBar';
 import ErrorLine from './ErrorLine';
+import Skeleton from './Skeleton';
+import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import { door43ErrorText } from './door43Error';
 
@@ -105,10 +107,10 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     <main className="screen">
       <TopBar brand title={t('projectsTitle')} sub={session.username || undefined} actions={<SignOut onSignOut={onSignOut} />} />
       <ErrorLine text={failure(status)} />
-      {repos === null && status.state !== 'failed' && <p className="muted">{t('loadingProjects')}</p>}
+      {repos === null && status.state !== 'failed' && <Skeleton shape="projects" label={t('loadingProjects')} />}
       {repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
-      {repos?.map((r) => (
-        <button key={keyOf(r)} className="row project" disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
+      {repos?.map((r, i) => (
+        <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
           <span className="project-text">
             <span className="project-name">{r.name}</span>
             <span className="muted">

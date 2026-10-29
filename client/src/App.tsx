@@ -5,6 +5,7 @@ import ResourceInstall from './screens/ResourceInstall';
 import BookPicker from './screens/BookPicker';
 import CheckList from './screens/CheckList';
 import CheckScreen from './screens/CheckScreen';
+import Skeleton from './screens/Skeleton';
 import { Door43ApiError, door43Api, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
@@ -34,6 +35,12 @@ export default function App() {
   const session = auth.state === 'signedIn' ? auth.session : null;
   const signIn = (s: Door43Session) => setAuth({ state: 'signedIn', session: s });
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
+  // Into a screen, the new screen slides in from the end; Back, from the start (app.css, `data-nav`). Moves
+  // within a screen (a check to the next) use setScreen and keep the screen where it is.
+  const go = (next: Screen, back = false) => {
+    document.documentElement.dataset.nav = back ? 'back' : 'forward';
+    setScreen(next);
+  };
   // The session screens act for. Sign-out clears it at once, so work that ends later (a clone) opens nothing.
   const live = useRef<Door43Session | null>(null);
   useEffect(() => {
@@ -83,7 +90,7 @@ export default function App() {
   if (auth.state === 'restoring')
     return (
       <main className="screen">
-        <p className="muted">{t('signingYouIn')}</p>
+        <Skeleton shape="projects" label={t('signingYouIn')} />
       </main>
     );
   if (!session) return <SignIn api={api} store={store} onSignedIn={signIn} />;
@@ -94,8 +101,8 @@ export default function App() {
           key={screen.repoPath}
           repoPath={screen.repoPath}
           source={source}
-          onReady={() => setScreen({ name: 'books', repoPath: screen.repoPath })}
-          onBack={() => setScreen({ name: 'projects' })}
+          onReady={() => go({ name: 'books', repoPath: screen.repoPath })}
+          onBack={() => go({ name: 'projects' }, true)}
         />
       );
     case 'books':
@@ -104,8 +111,8 @@ export default function App() {
           repoPath={screen.repoPath}
           source={source}
           engine={engine}
-          onPick={(book, tool) => setScreen({ name: 'list', repoPath: screen.repoPath, book, tool })}
-          onBack={() => setScreen({ name: 'projects' })}
+          onPick={(book, tool) => go({ name: 'list', repoPath: screen.repoPath, book, tool })}
+          onBack={() => go({ name: 'projects' }, true)}
         />
       );
     case 'list':
@@ -117,8 +124,8 @@ export default function App() {
           source={source}
           engine={engine}
           focus={screen.focus}
-          onOpen={(s, index) => setScreen({ ...screen, name: 'check', session: s, index })}
-          onBack={() => setScreen({ name: 'books', repoPath: screen.repoPath })}
+          onOpen={(s, index) => go({ ...screen, name: 'check', session: s, index })}
+          onBack={() => go({ name: 'books', repoPath: screen.repoPath }, true)}
         />
       );
     case 'check':
@@ -139,10 +146,10 @@ export default function App() {
               cur.name === 'check' && cur.repoPath === screen.repoPath && cur.book === screen.book && cur.tool === screen.tool ? { ...cur, session: s } : cur,
             )
           }
-          onBack={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index })}
+          onBack={() => go({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index }, true)}
         />
       );
     default:
-      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => live.current === session && setScreen({ name: 'install', repoPath })} onSignOut={signOut} cloning={cloning} onCloning={onCloning} />;
+      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => live.current === session && go({ name: 'install', repoPath })} onSignOut={signOut} cloning={cloning} onCloning={onCloning} />;
   }
 }

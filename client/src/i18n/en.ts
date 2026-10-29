@@ -25,6 +25,7 @@ export const en = {
 
   resourcesTitle: 'Getting resources',
   resourcesIntro: 'This project checks against these resources. They download once, then work offline.',
+  loadingResources: 'Reading the resources this project needs…',
   waiting: 'Waiting',
   downloading: 'Downloading…',
   installed: 'Installed',
@@ -39,12 +40,14 @@ export const en = {
   continue: 'Continue',
 
   booksTitle: 'Choose a book',
+  loadingBooks: 'Loading the books…',
   words: 'Words',
   notes: 'Notes',
   bookToolProgress: '{name}, {decided} of {total}',
   bookToolLoading: '{name}, loading',
 
   sync: 'Sync',
+  loadingChecks: 'Loading the checks…',
   syncing: 'Syncing…',
   progress: '{decided} of {total} checked',
   chapterProgress: 'Chapter {chapter}: {decided} of {total} checked',
@@ -66,6 +69,7 @@ export const en = {
   stateVersificationUnsupported: 'This project numbers its verses with the {scheme} versification. The phone checks only projects in the default eng numbering for now. Check this book in translationCore on a computer.',
 
   previous: 'Previous',
+  loadingCheck: 'Loading the check…',
   next: 'Next',
   yourTranslation: 'Your translation',
   valid: 'Valid',

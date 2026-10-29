@@ -15,6 +15,7 @@ import { gatewayOf, verseOf } from './checkLabel';
 import { noteWithoutAcademyLinks } from './noteText';
 import { splitTitle } from './articleTitle';
 import ErrorLine from './ErrorLine';
+import Skeleton from './Skeleton';
 import { IDLE, LOADING, failure, ready, type Load, type Run } from './load';
 
 type Props = {
@@ -190,6 +191,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         onTitle={() => setPicking(true)}
       />
       <ErrorLine text={failure(context) ?? failure(status)} />
+      {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
       {ctx && (
         <>
           <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
@@ -225,7 +227,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           no decisions, one large Next says which verse it goes to. There is only ever one Next. */}
       <nav className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
         <div className="progress" aria-hidden="true">
-          <span style={{ width: `${((index + 1) / total) * 100}%` }} />
+          <span style={{ transform: `scaleX(${(index + 1) / total})` }} />
         </div>
         <div className="nav-row">
           <button className="link" onClick={prev} disabled={index === 0}>

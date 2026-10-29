@@ -27,6 +27,7 @@ export const es: Strings = {
 
   resourcesTitle: 'Preparando los recursos',
   resourcesIntro: 'Este proyecto se revisa con estos recursos. Se descargan una vez y después funcionan sin internet.',
+  loadingResources: 'Leyendo los recursos que necesita este proyecto…',
   waiting: 'En espera',
   downloading: 'Descargando…',
   installed: 'Instalado',
@@ -41,12 +42,14 @@ export const es: Strings = {
   continue: 'Continuar',
 
   booksTitle: 'Elige un libro',
+  loadingBooks: 'Cargando los libros…',
   words: 'Palabras',
   notes: 'Notas',
   bookToolProgress: '{name}, {decided} de {total}',
   bookToolLoading: '{name}, cargando',
 
   sync: 'Sincronizar',
+  loadingChecks: 'Cargando las revisiones…',
   syncing: 'Sincronizando…',
   progress: '{decided} de {total} revisados',
   chapterProgress: 'Capítulo {chapter}: {decided} de {total} revisados',
@@ -68,6 +71,7 @@ export const es: Strings = {
   stateVersificationUnsupported: 'Este proyecto numera sus versículos con la versificación {scheme}. Por ahora el teléfono solo revisa proyectos con la numeración eng. Revisa este libro en translationCore en una computadora.',
 
   previous: 'Anterior',
+  loadingCheck: 'Cargando la revisión…',
   next: 'Siguiente',
   yourTranslation: 'Tu traducción',
   valid: 'Válido',
