@@ -1,7 +1,7 @@
 // Issue #30: the app moves as tC4 moves. Ways it can fail: a load that still shows one line of text instead
 // of a skeleton, or a skeleton a screen reader cannot hear; rows that all appear at once, or a long list
-// whose last rows make the checker wait; a screen that jumps instead of sliding, or that no longer opens
-// where the WebView has no View Transitions; a panel that jumps open; an animated colour, width or height
+// whose last rows make the checker wait; a screen that jumps instead of sliding, or a slide that swallows
+// a quick second tap; a panel that jumps open; an animated colour, width or height
 // (janky on a mid-range Android phone), or a duration typed instead of a tC4 token; anything moving when
 // the phone asks for reduced motion; an animation library. The source checks need no browser.
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
@@ -167,19 +167,14 @@ const motionOf = (page: Page, selector: string) =>
 /** Row i waits i × --stagger (70 ms), up to the eighth row; the rows after it enter with the eighth. */
 const staggered = (count: number) => Array.from({ length: count }, (_, i) => ['rise', Math.min(i, 7) * 70]);
 
-/** Counts startViewTransition calls with the direction the app set for each. */
-const spyTransitions = (context: BrowserContext) =>
-  context.addInitScript(() => {
-    const w = window as unknown as { transitions: string[] };
-    w.transitions = [];
-    const original = Document.prototype.startViewTransition;
-    Document.prototype.startViewTransition = function (this: Document, update?: ViewTransitionUpdateCallback) {
-      w.transitions.push(document.documentElement.dataset.nav ?? '');
-      return original.call(this, update);
-    } as Document['startViewTransition'];
+/** How the screen on view came in: the animation of the screen, or on the check screen of its content (its
+ * fixed bottom bar cannot move with it). */
+const entrance = (page: Page) =>
+  page.evaluate(() => {
+    const main = document.querySelector('#root > main')!;
+    const el = main.classList.contains('check') ? main.querySelector(':scope > :not(.bottombar)')! : main;
+    return getComputedStyle(el).animationName;
   });
-const transitions = (page: Page) => page.evaluate(() => (window as unknown as { transitions: string[] }).transitions);
-
 test.describe('with motion', () => {
   test.use({ contextOptions: { reducedMotion: 'no-preference' } });
 
@@ -210,41 +205,44 @@ test.describe('with motion', () => {
     expect(await page.evaluate(() => document.getAnimations().map((a) => (a.effect as KeyframeEffect).target?.className))).toEqual([]);
   });
 
-  test('j30: going into a screen slides forward and Back slides back, through View Transitions', async ({ page, context }) => {
+  test('j30: going into a screen slides forward and Back slides back; Next does not', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
-    await spyTransitions(context);
     await openBooks(page, context);
-    // Projects → resources → books: the resources screen hands on at once when nothing is missing.
-    await expect.poll(() => transitions(page)).toEqual(['forward', 'forward']);
+    expect(await entrance(page)).toBe('enter-from-end');
     await page.getByRole('button', { name: /^Titus Words/ }).click();
+    await expect(page.getByTestId('check-row').first()).toBeVisible();
+    expect(await entrance(page)).toBe('enter-from-end');
     await page.getByTestId('check-row').first().click();
     await expect(page.getByTestId('check-title')).toBeVisible();
-    // Next moves within the check screen: no screen transition (the swipe is its own issue).
+    expect(await entrance(page)).toBe('enter-from-end');
+    // Next moves within the check screen: the screen does not come in again (the swipe is its own issue).
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
     await page.getByRole('button', { name: /^Next/ }).click();
     await expect(page.getByTestId('check-header')).toContainText('2 /');
+    expect(await page.evaluate(() => document.getAnimations().map((a) => (a as CSSAnimation).animationName ?? '').filter((n) => n.startsWith('enter-')))).toEqual([]);
     await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
     await expect(page.getByRole('heading', { name: 'Titus 1' })).toBeVisible();
-    await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
-    await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
-    expect(await transitions(page)).toEqual(['forward', 'forward', 'forward', 'forward', 'back', 'back']);
+    expect(await entrance(page)).toBe('enter-from-start');
   });
 
-  test('j30: without View Transitions in the WebView, screens change at once and every way still works', async ({ page, context }) => {
+  test('j30: a tap while a screen slides in still works: two quick Backs go up two levels', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
-    await context.addInitScript(() => {
-      delete (Document.prototype as Partial<Document>).startViewTransition;
-    });
-    await openBooks(page, context);
-    expect(await page.evaluate(() => 'startViewTransition' in document)).toBe(false);
-    await page.getByRole('button', { name: /^Titus Words/ }).click();
+    await openList(page, context);
     await page.getByTestId('check-row').first().click();
     await expect(page.getByTestId('check-title')).toBeVisible();
-    for (const heading of ['Titus 1', 'Choose a book', 'Your projects']) {
-      await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
-      await expect(page.getByRole('heading', { name: heading })).toBeVisible();
-    }
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+    const back = (await page.getByRole('banner').getByRole('button', { name: 'Back' }).boundingBox())!;
+    const tap = async () => {
+      await page.mouse.move(back.x + back.width / 2, back.y + back.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(60);
+      await page.mouse.up();
+    };
+    await tap();
+    await page.waitForTimeout(90);
+    await tap();
+    await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
   });
-
   test('j30: the chapter sheet slides up, a verse and the help open smoothly', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openList(page, context);
@@ -285,9 +283,8 @@ const still = (page: Page) =>
       .map((el) => el.className),
   }));
 
-test('j30: with reduced motion nothing moves, and no screen transition runs', async ({ page, context }) => {
+test('j30: with reduced motion nothing moves, and no screen slides in', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
-  await spyTransitions(context);
   await openBooks(page, context);
   expect(await still(page)).toEqual({ animations: 0, moving: [] });
   await page.getByRole('button', { name: /^Titus Words/ }).click();
@@ -300,5 +297,7 @@ test('j30: with reduced motion nothing moves, and no screen transition runs', as
   await page.locator('.help-toggle').click();
   await expect(page.getByTestId('help-body')).toBeVisible();
   expect(await still(page)).toEqual({ animations: 0, moving: [] });
-  expect(await transitions(page)).toEqual([]);
+  await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('check-row').first()).toBeVisible();
+  expect(await still(page)).toEqual({ animations: 0, moving: [] });
 });

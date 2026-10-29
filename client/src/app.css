@@ -149,9 +149,7 @@ button:disabled { opacity: 0.45; }
 @keyframes pulse { 50% { opacity: 0.5; } }
 @keyframes sheet-up { from { transform: translateY(100%); } }
 @keyframes enter-from-end { from { opacity: 0; transform: translateX(var(--space-10)); } }
-@keyframes leave-to-start { to { opacity: 0; transform: translateX(calc(-1 * var(--space-10))); } }
 @keyframes enter-from-start { from { opacity: 0; transform: translateX(calc(-1 * var(--space-10))); } }
-@keyframes leave-to-end { to { opacity: 0; transform: translateX(var(--space-10)); } }
 @media (prefers-reduced-motion: no-preference) {
   /* List rows rise in one after another (stagger.ts sets each row's --row). A verse's checks rise in as it opens. */
   .enter, .verse[open] .check-row { animation: rise var(--dur-enter) var(--ease-standard) backwards; animation-delay: calc(var(--row, 0) * var(--stagger)); }
@@ -164,9 +162,12 @@ button:disabled { opacity: 0.45; }
   .bottombar .progress span { transition: transform var(--dur-panel) var(--ease-standard); }
   .bottombar .decide button { transition: opacity var(--dur-hover) var(--ease-standard); }
   .bottombar button.next { animation: rise var(--dur-panel) var(--ease-standard); }
-  /* Screen changes (App.tsx go): forward, the new screen comes from the end; Back, from the start. */
-  ::view-transition-old(root) { animation: leave-to-start var(--dur-panel) var(--ease-standard) both; }
-  ::view-transition-new(root) { animation: enter-from-end var(--dur-panel) var(--ease-standard) both; }
-  :root[data-nav='back']::view-transition-old(root) { animation-name: leave-to-end; }
-  :root[data-nav='back']::view-transition-new(root) { animation-name: enter-from-start; }
+  /* Screen changes (App.tsx go): the new screen slides in from the end, or on Back from the start. It is the new
+     screen that moves, not a View Transition: one covers the page while it runs and swallows a quick second tap.
+     On the check screen its content moves and the fixed bottom bar fades: a moving parent would unfix the bar. */
+  :root[data-nav] #root > main:not(.check),
+  :root[data-nav] #root > main.check > :not(.bottombar) { animation: enter-from-end var(--dur-panel) var(--ease-standard); }
+  :root[data-nav='back'] #root > main:not(.check),
+  :root[data-nav='back'] #root > main.check > :not(.bottombar) { animation-name: enter-from-start; }
+  :root[data-nav] #root > main.check > .bottombar { animation: fade var(--dur-panel) var(--ease-standard); }
 }

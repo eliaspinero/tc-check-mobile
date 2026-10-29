@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import SignIn from './screens/SignIn';
 import ProjectList from './screens/ProjectList';
 import ResourceInstall from './screens/ResourceInstall';
@@ -36,13 +35,11 @@ export default function App() {
   const session = auth.state === 'signedIn' ? auth.session : null;
   const signIn = (s: Door43Session) => setAuth({ state: 'signedIn', session: s });
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
-  // Into a screen slides forward, Back slides back (app.css), where the WebView has View Transitions and the
-  // phone allows motion; otherwise the screen changes at once. flushSync renders the new screen inside the
-  // transition's callback, so the transition captures it. Moves within a screen (a check to the next) use setScreen.
+  // Into a screen, the new screen slides in from the end; Back, from the start (app.css, `data-nav`). Moves
+  // within a screen (a check to the next) use setScreen and keep the screen where it is.
   const go = (next: Screen, back = false) => {
-    if (!('startViewTransition' in document) || matchMedia('(prefers-reduced-motion: reduce)').matches) return setScreen(next);
     document.documentElement.dataset.nav = back ? 'back' : 'forward';
-    document.startViewTransition(() => flushSync(() => setScreen(next)));
+    setScreen(next);
   };
   // The session screens act for. Sign-out clears it at once, so work that ends later (a clone) opens nothing.
   const live = useRef<Door43Session | null>(null);
