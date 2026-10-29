@@ -92,7 +92,9 @@ that run and publishes nothing.
   release run fails; it never signs with a key of its own.
 - **Same key, every build.** The run log prints the certificate's SHA-256 digest; it must be the
   same in every release. Two releases install over each other, and Android keeps the app's private
-  data (the Door43 session and the cloned projects) across the update.
+  data (the Door43 session and the cloned projects) across the update. The client and the other
+  embedded resources are copied into that private data on the first start; the first start of a
+  newer build replaces that copy (`refresh_resources` in `src-tauri/src/lib.rs`).
 - **Play Console.** Create the app with the package id `io.github.eliaspinero.tccheck` (it cannot
   change after the first upload) and enrol in Play App Signing; the release key becomes the upload
   key. The first AAB goes up by hand on the internal testing track. After that, set the secret
