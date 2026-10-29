@@ -7,6 +7,10 @@ use serde_json::json;
 use std::env;
 use std::path::Path;
 
+// The shell's own upload limits, the same file (#37).
+#[path = "../../../shell/src-tauri/src/limits.rs"]
+mod limits;
+
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     let state = env::args().nth(1).expect("usage: tc-check-rig <state dir>");
@@ -30,6 +34,6 @@ async fn main() -> Result<(), rocket::Error> {
         "local_setup_path": format!("{}setup/local_setup.json", resources),
         "app_resources_path": resources,
     });
-    pankosmia_web::rocket(conf).launch().await?;
+    limits::with_upload_limits(pankosmia_web::rocket(conf)).launch().await?;
     Ok(())
 }
