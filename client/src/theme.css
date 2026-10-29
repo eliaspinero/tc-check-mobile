@@ -10,11 +10,12 @@
 @import url('ds/tokens/elevation.css');
 @import url('ds/tokens/motion.css');
 
-/* Valid and Invalid as text, and Valid's soft fill (tC4's --t-valid-soft), on a light ground. */
+/* Valid and Invalid as text, and their soft fills (tC4's --t-valid-soft and --t-invalid-soft), on a light ground. */
 :root {
   --text-valid: var(--tc-valid-strong);
   --text-invalid: var(--tc-invalid);
   --fill-valid-soft: var(--tc-valid-surface);
+  --fill-invalid-soft: var(--tc-invalid-surface);
 }
 
 /* Dark mode. tC4 has no dark theme for a whole app, only dark panels (its tokens/context.css, [data-on="dark"]).
@@ -38,6 +39,7 @@
     --text-valid: var(--tc-valid);
     --text-invalid: var(--tc-invalid-on-dark);
     --fill-valid-soft: rgba(88, 193, 122, 0.22);
+    --fill-invalid-soft: rgba(162, 19, 9, 0.34);
     --border-danger: var(--tc-invalid-on-dark);
     --border-hair: rgba(255, 255, 255, 0.12);
     --border: var(--border-inverse);

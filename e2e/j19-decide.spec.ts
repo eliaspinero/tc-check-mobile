@@ -100,21 +100,21 @@ const tokenBackground = (page: Page, token: string) =>
     return c;
   }, token);
 
-// #29 owner ruling: neither button is filled until it is the check's decision. Valid rests on a soft green,
-// Invalid on an outline; the chosen one fills in its status colour, and says so to a screen reader.
+// #29 owner ruling: neither button is filled until it is the check's decision. Both rest on a soft tint of
+// their status colour, so neither reads as the default; the chosen one fills, and says so to a screen reader.
 test('j19: Valid and Invalid stay light until chosen, and the chosen one fills', async ({ page, context }) => {
   await openUndecided(page, context);
   const valid = page.getByRole('button', { name: 'Valid', exact: true });
   const invalid = page.getByRole('button', { name: 'Invalid', exact: true });
-  const card = await tokenBackground(page, '--surface-card');
+  const invalidSoft = await tokenBackground(page, '--fill-invalid-soft');
   expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--fill-valid-soft'));
-  expect(await backgroundOf(invalid)).toBe(card);
+  expect(await backgroundOf(invalid)).toBe(invalidSoft);
   await expect(valid).toHaveAttribute('aria-pressed', 'false');
   await valid.click();
   await expect(page.getByTestId('decided')).toHaveText('Valid');
   await expect(valid).toHaveAttribute('aria-pressed', 'true');
   expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--tc-valid-strong'));
-  expect(await backgroundOf(invalid)).toBe(card);
+  expect(await backgroundOf(invalid)).toBe(invalidSoft);
   await invalid.click();
   await expect(page.getByTestId('decided')).toHaveText('Invalid');
   await expect(invalid).toHaveAttribute('aria-pressed', 'true');

@@ -87,9 +87,9 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .bottombar button { flex: 1; }
 /* Valid and Invalid over Previous and Next, in thumb reach (spec §5 item 6). */
 .bottombar .decide { flex-basis: 100%; display: flex; gap: var(--space-3); }
-/* Neither is filled until it is the check's decision: Valid rests on a soft green, Invalid on an outline. */
+/* Neither is filled until it is the check's decision: both rest on a soft tint, so neither reads as the default. */
 .bottombar .decide .valid { background: var(--fill-valid-soft); color: var(--text-valid); border-color: var(--tc-valid); }
-.bottombar .decide .invalid { border-color: var(--border-danger); color: var(--text-invalid); }
+.bottombar .decide .invalid { background: var(--fill-invalid-soft); border-color: var(--border-danger); color: var(--text-invalid); }
 .bottombar .decide .valid[aria-pressed='true'] { background: var(--tc-valid-strong); color: var(--text-inverse); border-color: var(--tc-valid-strong); box-shadow: var(--shadow-raised); }
 .bottombar .decide .invalid[aria-pressed='true'] { background: var(--tc-invalid); color: var(--text-inverse); border-color: var(--tc-invalid); box-shadow: var(--shadow-raised); }
 /* The decision under the target verse is interface text, not scripture. */
