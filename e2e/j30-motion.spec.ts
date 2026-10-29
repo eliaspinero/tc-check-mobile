@@ -215,7 +215,7 @@ test.describe('with motion', () => {
     await page.getByTestId('check-row').first().click();
     await expect(page.getByTestId('check-title')).toBeVisible();
     expect(await entrance(page)).toBe('enter-from-end');
-    // Next moves within the check screen: the screen does not come in again (the swipe is its own issue).
+    // Next moves within the check screen: its content slides (j31), and the screen does not come in again.
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
     await page.getByRole('button', { name: /^Next/ }).click();
     await expect(page.getByTestId('check-header')).toContainText('2 /');
