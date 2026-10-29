@@ -1,0 +1,147 @@
+# Builds the store release: the client bound to git.door43.org, an APK and an AAB for arm64 and armv7, signed
+# with the release key that stays the same between builds, so each release installs over the last one.
+# A tag `v*` or a manual run builds a release; it fails when the release key secrets are missing,
+# and uploads the AAB to the Play Console internal track when PLAY_SERVICE_ACCOUNT_JSON is set.
+# A pull request that touches the build rehearses it with a key made for that run and publishes nothing.
+# Setting up the key, the secrets and the Play Console app: shell/README.md, "Release on the Play Store".
+name: Android release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/android-release.yml
+      - .github/actions/android-build/**
+      - scripts/**
+      - shell/**
+      - package.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PACKAGE_ID: org.unfoldingword.tccheck
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      # A release is never signed with a key of its own: a new key would stop it installing over the
+      # last one, on every phone, for good. Only a rehearsal on a pull request makes one. This step
+      # only checks that the secrets exist; the key itself is read in the signing step, so no build
+      # tool or third-party action before it can reach the key or its password.
+      - name: Check the release secrets
+        env:
+          REHEARSAL: ${{ github.event_name == 'pull_request' }}
+          HAS_KEY: ${{ secrets.ANDROID_RELEASE_KEYSTORE != '' && secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD != '' && secrets.ANDROID_RELEASE_KEY_ALIAS != '' }}
+          HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        run: |
+          if [ "$REHEARSAL" != "true" ] && [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Set the secrets ANDROID_RELEASE_KEYSTORE, ANDROID_RELEASE_KEYSTORE_PASSWORD and ANDROID_RELEASE_KEY_ALIAS (shell/README.md, Release on the Play Store)."
+            exit 1
+          fi
+          echo "HAS_PLAY=$HAS_PLAY" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/android-build
+        with:
+          qa: 'false'
+          armv7: 'true'
+
+      # versionName is the repository version; versionCode is this workflow's run number, which only
+      # grows, so every release can replace the one before it on a phone and on the Play Console.
+      - name: Set the version
+        run: |
+          name=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/* ]] && [ "$GITHUB_REF_NAME" != "v$name" ]; then
+            echo "::error::the tag $GITHUB_REF_NAME does not match the version in package.json ($name): tag v$name, or bump the version first"
+            exit 1
+          fi
+          echo "VERSION_NAME=$name" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          node -e "require('fs').writeFileSync('shell/src-tauri/release.conf.json', JSON.stringify({ version: '$name', bundle: { android: { versionCode: $GITHUB_RUN_NUMBER } } }))"
+
+      - name: Build the release APK and AAB (arm64 and armv7)
+        working-directory: shell
+        run: npm run android:tauri -- android build --apk --aab --target aarch64 --target armv7 --ci --config "$PWD/src-tauri/release.conf.json"
+
+      - name: Sign the APK and the AAB
+        working-directory: shell
+        env:
+          REHEARSAL: ${{ github.event_name == 'pull_request' }}
+          KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+        run: |
+          KEYSTORE_FILE="$RUNNER_TEMP/release.keystore"
+          if [ "$REHEARSAL" = "true" ]; then
+            KEYSTORE_PASS=$(openssl rand -hex 16)
+            KEY_ALIAS=rehearsal
+            keytool -genkeypair -keystore "$KEYSTORE_FILE" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 30 \
+              -storepass "$KEYSTORE_PASS" -keypass "$KEYSTORE_PASS" -dname "CN=tC Check release rehearsal"
+          else
+            echo "$KEYSTORE" | base64 --decode > "$KEYSTORE_FILE"
+            KEYSTORE_PASS=$KEYSTORE_PASSWORD
+            KEY_ALIAS=$RELEASE_KEY_ALIAS
+          fi
+          export KEYSTORE_PASS
+          outputs=src-tauri/gen/android/app/build/outputs
+          apk=$(find "$outputs/apk" -name '*-release-unsigned.apk' -type f | head -n 1)
+          aab=$(find "$outputs/bundle" -name '*-release.aab' -type f | head -n 1)
+          if [ -z "$apk" ] || [ -z "$aab" ]; then echo "::error::the build made no release APK or AAB"; exit 1; fi
+          tools="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          base="tc-check-${VERSION_NAME}-${VERSION_CODE}"
+          mkdir -p release
+          "$tools/zipalign" -f -p 4 "$apk" aligned.apk
+          "$tools/apksigner" sign --ks "$KEYSTORE_FILE" --ks-key-alias "$KEY_ALIAS" --ks-pass env:KEYSTORE_PASS \
+            --out "release/$base.apk" aligned.apk
+          cp "$aab" "release/$base.aab"
+          jarsigner -keystore "$KEYSTORE_FILE" -storepass:env KEYSTORE_PASS -sigalg SHA256withRSA -digestalg SHA-256 \
+            "release/$base.aab" "$KEY_ALIAS"
+          rm -f aligned.apk "$KEYSTORE_FILE"
+          ls -lh release
+
+      # The proof that this build can replace the last one: the same certificate every release
+      # (compare the digest with the run before) and the package id and version code it was given.
+      - name: Check the signature and the version
+        working-directory: shell
+        run: |
+          tools="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          apk=$(ls release/*.apk)
+          "$tools/apksigner" verify --print-certs "$apk" | grep -i 'SHA-256 digest'
+          jarsigner -verify release/*.aab | grep -q 'jar verified' || { echo "::error::the AAB signature does not verify"; exit 1; }
+          badging=$("$tools/aapt2" dump badging "$apk" | head -n 1)
+          echo "$badging"
+          expected="package: name='$PACKAGE_ID' versionCode='$VERSION_CODE' versionName='$VERSION_NAME'"
+          case "$badging" in "$expected"*) ;; *) echo "::error::expected $expected"; exit 1 ;; esac
+          native=$("$tools/aapt2" dump badging "$apk" | grep '^native-code:')
+          echo "$native"
+          case "$native" in *arm64-v8a*armeabi-v7a*|*armeabi-v7a*arm64-v8a*) ;; *) echo "::error::the APK must carry arm64-v8a and armeabi-v7a"; exit 1 ;; esac
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tc-check-release
+          path: shell/release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      # The Play Console takes the first upload of an app only by hand; this step is for every one after.
+      # A release starts as a draft on the internal track, and the owner rolls it out from the console.
+      - name: Upload to the Play Console internal track
+        if: github.event_name != 'pull_request' && env.HAS_PLAY == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_ID }}
+          releaseFiles: shell/release/*.aab
+          track: internal
+          status: draft

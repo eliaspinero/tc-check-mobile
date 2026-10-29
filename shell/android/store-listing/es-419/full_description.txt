@@ -1,0 +1,7 @@
+tC Check lleva las revisiones de translationCore al celular, para quien revisa en un equipo y no tiene una laptop.
+
+Inicia sesión con tu cuenta de Door43, descarga un proyecto y recorre sus revisiones de translationNotes y translationWords una a una. Cada revisión muestra su ayuda, la ULT y la UST del versículo con la cita resaltada, y tu traducción debajo.
+
+Tus decisiones se sincronizan con Door43, así el equipo las ve en translationCore en la computadora.
+
+tC Check usa una cuenta de Door43 (git.door43.org).

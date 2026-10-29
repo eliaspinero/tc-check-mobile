@@ -1,0 +1,7 @@
+tC Check brings the translationCore checks to a phone, for a team checker who has no laptop.
+
+Sign in with your Door43 account, download a project, and go through its translationNotes and translationWords checks one by one. Each check shows its help, the ULT and the UST of the verse with the quote highlighted, and your translation below.
+
+Your decisions sync with Door43, so the team sees them in translationCore on the desktop.
+
+tC Check uses a Door43 account (git.door43.org).

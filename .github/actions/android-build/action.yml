@@ -1,0 +1,112 @@
+# The toolchain and Android project that the QA and the release workflows share: the client built
+# into the shell, the Android SDK and NDK, Rust, OpenSSL for arm64 (and armv7 when asked), and the
+# generated Android project.
+# After it, `npm run android:tauri -- android build` works in `shell/` (NDK_HOME is exported).
+# The caller checks the repository out first.
+name: Android build setup
+description: Build the client into the shell and prepare the Tauri Android project (arm64, optionally armv7).
+
+inputs:
+  qa:
+    description: "'true' binds the client to qa.door43.org; anything else to git.door43.org."
+    required: true
+  armv7:
+    description: "'true' also prepares the 32-bit armv7 target, for older phones."
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          shell/package-lock.json
+
+    - name: Build the client into the shell
+      shell: bash
+      env:
+        QA: ${{ inputs.qa }}
+      run: |
+        npm ci
+        if [ "$QA" = "true" ]; then node scripts/build-client-into-shell.mjs --qa; else node scripts/build-client-into-shell.mjs; fi
+
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - uses: android-actions/setup-android@v4
+      with:
+        # Its default list includes `tools`, which the SDK repository no longer serves.
+        packages: platform-tools
+
+    - name: Pin the NDK and OpenSSL versions
+      shell: bash
+      env:
+        ARMV7: ${{ inputs.armv7 }}
+      run: |
+        if [ "$ARMV7" = "true" ]; then
+          echo "OPENSSL_ARCHS=android-arm64 android-arm" >> "$GITHUB_ENV"
+          echo "OPENSSL_CACHE=android-arm64-android-arm" >> "$GITHUB_ENV"
+          echo "RUST_TARGETS=aarch64-linux-android,armv7-linux-androideabi" >> "$GITHUB_ENV"
+        else
+          echo "OPENSSL_ARCHS=android-arm64" >> "$GITHUB_ENV"
+          echo "OPENSSL_CACHE=android-arm64" >> "$GITHUB_ENV"
+          echo "RUST_TARGETS=aarch64-linux-android" >> "$GITHUB_ENV"
+        fi
+        echo "NDK_VERSION=27.0.12077973" >> "$GITHUB_ENV"
+        echo "OPENSSL_VERSION=openssl-3.5.7" >> "$GITHUB_ENV"
+        echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+    # The NDK is a large download that once arrived corrupt, so it is cached. The platform and
+    # build tools are not: the runner image ships them owned by root, and restoring over them
+    # makes the whole restore fail. sdkmanager downloads them only if the image lacks them.
+    - name: Cache the Android NDK
+      id: android-ndk
+      uses: actions/cache@v6
+      with:
+        path: ${{ env.NDK_HOME }}
+        key: android-ndk-${{ runner.os }}-${{ env.NDK_VERSION }}
+
+    - name: Install the Android platform, build tools and NDK
+      shell: bash
+      env:
+        NDK_CACHED: ${{ steps.android-ndk.outputs.cache-hit }}
+      run: |
+        packages=("platforms;android-34" "build-tools;34.0.0")
+        if [ "$NDK_CACHED" != "true" ]; then packages+=("ndk;${NDK_VERSION}"); fi
+        sdkmanager "${packages[@]}"
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ env.RUST_TARGETS }}
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: shell/src-tauri
+
+    - name: Cache OpenSSL for Android
+      id: openssl
+      uses: actions/cache@v6
+      with:
+        path: shell/src-tauri/src/openssl/libs
+        key: openssl-${{ env.OPENSSL_CACHE }}-${{ env.OPENSSL_VERSION }}-ndk-${{ env.NDK_VERSION }}
+
+    - name: Build OpenSSL for Android
+      if: steps.openssl.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: shell/src-tauri/src/openssl
+      # OPENSSL_ARCHS is a list of words, one argument each.
+      run: ANDROID_NDK_HOME="$NDK_HOME" bash make_openssl.bsh $OPENSSL_ARCHS
+
+    - name: Generate the Android project
+      shell: bash
+      working-directory: shell
+      run: |
+        npm ci
+        npm run android:tauri -- android init --ci
+        node ../scripts/prepare-android.mjs
