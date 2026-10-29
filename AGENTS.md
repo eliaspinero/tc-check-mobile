@@ -31,6 +31,12 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
 ## Work
 
 - Repository text (code, docs, commits, pull requests) is in English.
+- When an issue needs another issue done first, record it as a GitHub issue dependency ("Blocked
+  by" in the issue's Relationships), not only as text in the body. It is the one record of what
+  blocks what: `gh api repos/eliaspinero/tc-check-mobile/issues/<n>/dependencies/blocked_by` lists
+  an issue's blockers.
+- Before starting an issue, check its blockers. If one is still open, say so and do not start
+  unless the owner says to.
 - Branches are `issue-<number>-<slug>`. Every change lands through a pull request.
 - Ask the owner before any commit, push or pull request. Never merge.
 - Before writing a helper, look for one that already does it (`graft grep` and `graft callers`, or
