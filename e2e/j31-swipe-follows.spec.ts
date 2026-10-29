@@ -163,6 +163,38 @@ test.describe('with motion', () => {
     expect(await helpX(page)).toBe(rest);
   });
 
+  test('j31: with a mouse, a sideways drag over the panes still selects text', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const rest = await helpX(page);
+    const word = (await page.getByTestId('pane-ULT').locator('span').nth(4).boundingBox())!;
+    await page.mouse.move(word.x + word.width - 2, word.y + word.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(word.x - 40, word.y + word.height / 2, { steps: 6 });
+    // The content stays where it is while the mouse selects.
+    expect(await helpX(page)).toBe(rest);
+    await page.mouse.up();
+    expect(await page.evaluate(() => getSelection()!.toString().trim().length)).toBeGreaterThan(0);
+  });
+
+  test('j31: the check left behind shows its verse and words as it slides out', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const title = (await page.getByTestId('check-title').textContent())!;
+    await swipe(page, 0.8, 0.3);
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+    // While the new check slides in, the old one is the previous peek, and its title is on screen.
+    const left = page.getByTestId('peek-prev').locator('.help-title');
+    await expect(left).toHaveText(title);
+    // The text itself, not its box: the end of the title is on screen.
+    const textEnd = await left.evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().right;
+    });
+    expect(textEnd).toBeGreaterThan(8);
+  });
+
   test('j31: Previous and Next use the same slide, timed by the tC4 tokens', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await open(page, context);

@@ -51,7 +51,8 @@ export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
       },
       onPointerMove: (e: React.PointerEvent) => {
         const s = start.current;
-        if (!s) return;
+        // A mouse drag selects text, as before; only a finger or a pen moves the check.
+        if (!s || e.pointerType === 'mouse') return;
         const dx = e.clientX - s.x;
         if (Math.abs(dx) <= Math.abs(e.clientY - s.y)) return;
         // With no check on that side, the content moves a quarter of the way: a hint that it ends here.
