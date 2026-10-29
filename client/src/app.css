@@ -74,6 +74,16 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 /* Check screen: collapsible help, panes, bottom bar. */
 /* Room under the content for the Ocean sheet: navigation and a large Next, plus the two decisions when deciding. */
 .check { padding-bottom: 168px; }
+.check { overflow-x: clip; }
+/* The check's content, laid out as the screen lays it out; it moves on a swipe (useSwipe.ts) and the checks before and
+   after it wait just past the screen's sides. overflow-x: clip hides them without making the screen scroll sideways
+   (clip, unlike hidden, keeps the top bar sticky). */
+.slide { --peek-gap: var(--space-7); position: relative; display: flex; flex-direction: column; gap: var(--space-5); }
+.peek { position: absolute; top: 0; bottom: 0; width: 100%; user-select: none; }
+.peek.next { left: calc(100% + var(--peek-gap)); }
+.peek.prev { right: calc(100% + var(--peek-gap)); }
+/* Its card stays in view under the top bar however far the check is scrolled. */
+.peek .help { position: sticky; top: calc(var(--space-24) + var(--space-7)); }
 .check.deciding { padding-bottom: 224px; }
 .help-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; border-radius: 0; background: transparent; padding: 0; text-align: left; font-weight: var(--fw-regular); }
 .help-body { margin-top: var(--space-2); line-height: var(--lh-body); }
@@ -170,4 +180,7 @@ button:disabled { opacity: 0.45; }
   :root[data-nav='back'] #root > main:not(.check),
   :root[data-nav='back'] #root > main.check > :not(.bottombar) { animation-name: enter-from-start; }
   :root[data-nav] #root > main.check > .bottombar { animation: fade var(--dur-panel) var(--ease-standard); }
+  /* The swipe (useSwipe.ts): the content follows --drag while the finger is down, and slides to rest after. With no
+     --drag the transform is invalid, so none: at rest nothing is moved. */
+  .slide { transform: translateX(var(--drag)); transition: transform var(--dur-panel) var(--ease-standard); }
 }

@@ -120,14 +120,27 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
   );
 }
 
+/** The check before or after this one, as it shows at the edge during a swipe: its verse and the words it is
+ * about, on the help's card. Only a hint of it (the full check renders once the swipe lands), so it is hidden
+ * from screen readers. */
+function Peek({ side, book, item, panes, engine }: { side: 'prev' | 'next'; book: string; item: CheckItem; panes: CheckContext['panes']; engine: CheckingEngine }) {
+  const { chapter, verse } = refOf(item);
+  return (
+    <div className={`peek ${side}`} data-testid={`peek-${side}`} aria-hidden="true">
+      <div className="help">
+        <p className="help-title">{`${bookName(book)} ${chapter}:${verse}`}</p>
+        <p>{gatewayOf(engine, panes, item)}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onDecided, onBack }: Props) {
   const [context, setContext] = useState<Load<CheckContext>>(LOADING);
   const ctx = ready(context);
   const [picking, setPicking] = useState(false);
   const total = session.items.length;
-  const next = () => index < total - 1 && onIndex(index + 1);
-  const prev = () => index > 0 && onIndex(index - 1);
-  const swipe = useSwipe(next, prev);
+  const swipe = useSwipe(index < total - 1 ? () => onIndex(index + 1) : undefined, index > 0 ? () => onIndex(index - 1) : undefined);
 
   useEffect(() => {
     loadCheckContext(repoPath, book, session.rung, source, engine).then(
@@ -178,7 +191,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const bigNext = decided !== null || !session.journaled;
 
   return (
-    <main className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe}>
+    <main className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe.area}>
       <TopBar
         title={`${bookName(book)} ${ref.chapter}:${ref.verse}`}
         titleTestId="check-title"
@@ -191,38 +204,43 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         onTitle={() => setPicking(true)}
       />
       <ErrorLine text={failure(context) ?? failure(status)} />
-      {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
-      {ctx && (
-        <>
-          <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
-          {/* The checker's own verse right under the help, so it is in view without scrolling; the sources follow in full. */}
-          <section className="pane target" data-testid="target" dir={ctx.dir}>
-            <span className="lb">{t('yourTranslation')}</span>
-            <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={chosen} onToggle={session.journaled ? toggle : undefined} />}</p>
-            {decided && (
-              <p className="decided" data-testid="decided" data-status={decided}>
-                {t(decided)}
-              </p>
-            )}
-          </section>
-          {!session.journaled && <p className="muted">{t('needsJournal')}</p>}
-          {ctx.panes.map((pane) => {
-            const verse = verseOf(pane.book, item);
-            const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
-            const hl = new Set(highlighted);
-            return (
-              <section key={pane.label} className="pane" data-testid={`pane-${pane.label}`}>
-                <span className="lb">{pane.label}</span>
-                <p>
-                  {pane.book === null && <span className="muted">{t('sourceMissing')}</span>}
-                  {pane.book !== null && !verse && <span className="muted">{t('verseMissing')}</span>}
-                  {tokens.map((tk, i) => (hl.has(i) ? <mark key={i} data-hl className="hl">{tk.text}</mark> : <span key={i}>{tk.text}</span>))}
+      {/* The check's content: it follows a swipe, with the checks before and after it at its edges. */}
+      <div className="slide" ref={swipe.content}>
+        {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
+        {ctx && (
+          <>
+            {index > 0 && <Peek side="prev" book={book} item={session.items[index - 1]} panes={ctx.panes} engine={engine} />}
+            {!last && <Peek side="next" book={book} item={session.items[index + 1]} panes={ctx.panes} engine={engine} />}
+            <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
+            {/* The checker's own verse right under the help, so it is in view without scrolling; the sources follow in full. */}
+            <section className="pane target" data-testid="target" dir={ctx.dir}>
+              <span className="lb">{t('yourTranslation')}</span>
+              <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={chosen} onToggle={session.journaled ? toggle : undefined} />}</p>
+              {decided && (
+                <p className="decided" data-testid="decided" data-status={decided}>
+                  {t(decided)}
                 </p>
-              </section>
-            );
-          })}
-        </>
-      )}
+              )}
+            </section>
+            {!session.journaled && <p className="muted">{t('needsJournal')}</p>}
+            {ctx.panes.map((pane) => {
+              const verse = verseOf(pane.book, item);
+              const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
+              const hl = new Set(highlighted);
+              return (
+                <section key={pane.label} className="pane" data-testid={`pane-${pane.label}`}>
+                  <span className="lb">{pane.label}</span>
+                  <p>
+                    {pane.book === null && <span className="muted">{t('sourceMissing')}</span>}
+                    {pane.book !== null && !verse && <span className="muted">{t('verseMissing')}</span>}
+                    {tokens.map((tk, i) => (hl.has(i) ? <mark key={i} data-hl className="hl">{tk.text}</mark> : <span key={i}>{tk.text}</span>))}
+                  </p>
+                </section>
+              );
+            })}
+          </>
+        )}
+      </div>
       {/* tC4's Ocean sheet (owner's design B3·1). Deciding comes first; once decided, or where the project takes
           no decisions, one large Next says which verse it goes to. There is only ever one Next. */}
       <nav className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
@@ -230,7 +248,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           <span style={{ transform: `scaleX(${(index + 1) / total})` }} />
         </div>
         <div className="nav-row">
-          <button className="link" onClick={prev} disabled={index === 0}>
+          <button className="link" onClick={swipe.prev} disabled={index === 0}>
             ‹ {t('previous')}
           </button>
           <span className="count">
@@ -239,7 +257,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           {bigNext ? (
             <span className="link-space" />
           ) : (
-            <button className="link" onClick={next} disabled={last}>
+            <button className="link" onClick={swipe.next} disabled={last}>
               {t('next')} ›
             </button>
           )}
@@ -257,7 +275,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           </div>
         )}
         {bigNext && (
-          <button className="next" onClick={next} disabled={last}>
+          <button className="next" onClick={swipe.next} disabled={last}>
             <span>{t('next')}</span>
             {/* Where Next goes, when it leaves this verse. */}
             <span className="next-to">{afterRef && `${afterRef} `}›</span>
