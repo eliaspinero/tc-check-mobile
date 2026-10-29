@@ -16,7 +16,9 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
 - Every file in `client/src/checking/` is copied from tC4 and starts with
   `// Copied from unfoldingWord/translationCore4 <path> at <commit>. Changes: <list or "none">.`
   (`npm run check:provenance` enforces it). Copied code is updated by hand from that header.
-- Slice 1 is read only: no route that writes to a project.
+- A decision is written only through the project's journal, as tC4 writes it
+  (`client/src/session/journal.ts`): the sealed segment first, then the derived file. Nothing else
+  writes to a project.
 
 ## Tests
 

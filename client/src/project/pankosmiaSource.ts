@@ -56,6 +56,15 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     },
     pull: (repoPath) => post(`/git/pull-repo/origin/${enc(repoPath)}`),
     readText: (repoPath, ipath) => text(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc(ipath)}`),
+    listPaths: async (repoPath) => JSON.parse(await text(`/burrito/paths/${enc(repoPath)}`)) as string[],
+    // The flags are presence-only (tC4 serverApi.writeIngredient): `update_ingredients` registers, `no_bak` skips the .bak.
+    writeText: async (repoPath, ipath, payload, { register, bak }) => {
+      const flags = [register ? '&update_ingredients' : '', bak ? '' : '&no_bak'].join('');
+      await post(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc(ipath)}${flags}`, {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload }),
+      });
+    },
     readMetadata: async (repoPath) => JSON.parse(await text(`/burrito/metadata/raw/${enc(repoPath)}`)) as Record<string, unknown>,
     readResources: (repoPath) => readJsonOrNull<ResourcesFile>(repoPath, 'checking/resources.json'),
     readDecisions: (repoPath, tool, book) => readJsonOrNull<DecisionFile>(repoPath, `checking/${tool}/${book}.json`),

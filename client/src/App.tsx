@@ -132,6 +132,13 @@ export default function App() {
           source={source}
           engine={engine}
           onIndex={(index) => setScreen({ ...screen, index })}
+          // A save lands after the tap; by then the checker may have moved on. Only the screen it was made
+          // on, still showing the same list, takes the new session, at whichever check it shows now.
+          onDecided={(s) =>
+            setScreen((cur) =>
+              cur.name === 'check' && cur.repoPath === screen.repoPath && cur.book === screen.book && cur.tool === screen.tool ? { ...cur, session: s } : cur,
+            )
+          }
           onBack={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index })}
         />
       );

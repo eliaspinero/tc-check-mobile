@@ -6,8 +6,10 @@ import { withSpanMembers } from '../checking/spanMembers';
 import { resolveProjectFrame } from '../checking/projectFrame';
 import { renderArticleBlocks } from '../checking/markdown';
 import type { CheckingEngine } from './CheckingEngine';
+import { tsJournal } from './tsJournal';
 
 export const tsEngine: CheckingEngine = {
+  journal: tsJournal,
   projectFrame: (repoPath, io) =>
     resolveProjectFrame(repoPath, {
       store: { readVersification: () => io.readVersification() },

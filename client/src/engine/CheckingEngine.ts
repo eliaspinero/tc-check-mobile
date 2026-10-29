@@ -9,8 +9,10 @@ import type { Selection } from '../checking/selections';
 import type { SourceToken } from '../checking/sourceHighlight';
 import type { ProjectFrame } from '../checking/projectFrame';
 import type { ArticleBlock, ArticleSpan } from '../checking/markdown';
+import type { DecisionPatch } from '../checking/recordDecision';
 
 export type { ArticleBlock, ArticleSpan, ProjectFrame };
+export type { DecisionPatch };
 export type { CheckItem, DerivedBook, DerivedVerse, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
 
 export interface DeriveInput {
@@ -37,7 +39,40 @@ export interface FrameIO {
   getVersification(name: string): Promise<unknown>;
 }
 
+/** The resource a decision file records it was checked against (§5.2 `resource`): repoPath + sha (D58/D59). */
+export type DecisionResource = { repoPath: string; version?: string; sha: string; languageSet?: string };
+
+/** A folded journal (tC4 journal/fold.mjs). Opaque to the callers: read it through `journal`. */
+export interface JournalFold {
+  readonly fold: unknown;
+}
+
+/** The §8 journal as tC4 writes it, through code copied from tC4 (journal/*.mjs, seal.ts). */
+export interface JournalEngine {
+  /** One segment file's events, or why it is refused (tC4 validateSegment). */
+  readSegment(raw: string): Promise<{ ok: true; events: unknown[] } | { ok: false; reason: string }>;
+  fold(events: unknown[]): JournalFold;
+  /** True when the journal holds the book (a `book.add`), the precondition of a decision on it (R-8.5.6). */
+  hasBook(fold: JournalFold, book: string): boolean;
+  /** The decisions the journal projects for (tool, book). */
+  decisions(fold: JournalFold, tool: Tool, book: string): CheckItem[];
+  /** The per-project actor id of this installation (tC4 deriveActorId), and a new installation secret. */
+  actorId(secret: string, repoPath: string): Promise<string>;
+  newSecret(): string;
+  /** The actor.json of a new actor (R-8.1.13): no display name, a non-identifying device label. */
+  actorDoc(actorId: string, now: string): string;
+  /** The sealed segment of one decision on `item`, or null when the journal already holds it unchanged.
+   * The clock moves past every ts in the journal first (R-8.2.4). */
+  decide(input: { fold: JournalFold; events: unknown[]; actor: string; tool: Tool; book: string; item: CheckItem; patch: DecisionPatch; now: () => number }): Promise<{ name: string; bytes: string; events: unknown[] } | null>;
+  /** The derived `checking/<tool>/<BOOK>.json` bytes the fold projects (tC4 projectDecisions). */
+  decisionFile(fold: JournalFold, tool: Tool, book: string, resource: DecisionResource): string | null;
+  /** What a Check button records (tC4 Check.jsx markValid / markInvalid): Valid with words tapped records
+   * them, with none "nothing to select"; Invalid clears the selection. */
+  patch(button: 'valid' | 'invalid', verseText: string, tapped: number[]): DecisionPatch;
+}
+
 export interface CheckingEngine {
+  journal: JournalEngine;
   /** The project's versification frame (tC4 resolveProjectFrame): a recorded name, else a fingerprint of vrs.json. */
   projectFrame(repoPath: string, io: FrameIO): Promise<ProjectFrame>;
   /** Which rung's pin supplies this (tool, book), and whether the twl pin is the retired one-repo form. */

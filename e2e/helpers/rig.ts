@@ -47,6 +47,12 @@ export const writeIngredient = async (repoPath: string, ipath: string, text: str
   if (!body.is_good) throw new Error(`rig write ${ipath}: ${body.reason}`);
 };
 
+export const readMetadata = async (repoPath: string): Promise<Record<string, unknown>> =>
+  (await (await fetch(`${RIG_URL}/api/burrito/metadata/raw/${repoPath}`)).json()) as Record<string, unknown>;
+
+/** Every file under a rig repo's ingredients/, as ingredient-relative paths. */
+export const listPaths = async (repoPath: string): Promise<string[]> => (await (await fetch(`${RIG_URL}/api/burrito/paths/${repoPath}`)).json()) as string[];
+
 export const readIngredient = async (repoPath: string, ipath: string): Promise<string> =>
   (await fetch(`${RIG_URL}/api/burrito/ingredient/raw/${repoPath}?ipath=${encodeURIComponent(ipath)}`)).text();
 

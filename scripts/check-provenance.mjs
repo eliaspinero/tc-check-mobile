@@ -1,4 +1,4 @@
-// Every file in client/src/checking/ is copied from translationCore 4 and must say so in its
+// Every file in client/src/checking/ and its subfolders is copied from translationCore 4 and must say so in its
 // first line:  // Copied from unfoldingWord/translationCore4 <path> at <commit>. Changes: <...>.
 // With TC4_DIR set to a tC4 checkout, the named path must also exist at the named commit.
 import fs from 'node:fs';
@@ -10,7 +10,7 @@ const HEADER = /^\/\/ Copied from unfoldingWord\/translationCore4 (\S+) at ([0-9
 const tc4 = process.env.TC4_DIR;
 const failures = [];
 
-for (const name of fs.readdirSync(dir).filter((f) => /\.(ts|tsx|js|mjs)$/.test(f)).sort()) {
+for (const name of fs.readdirSync(dir, { recursive: true }).filter((f) => /\.(ts|tsx|js|mjs)$/.test(f)).sort()) {
   const first = fs.readFileSync(path.join(dir, name), 'utf8').split(/\r?\n/, 1)[0];
   const m = HEADER.exec(first);
   if (!m) {

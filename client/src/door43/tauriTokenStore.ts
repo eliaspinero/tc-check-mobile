@@ -2,12 +2,9 @@
 // private data directory, through IPC. The page is served by the local Pankosmia server, which
 // the shell's capability lists as a remote origin allowed to call these commands.
 import type { TokenStore } from './tokenStore';
+import { invokeOf } from '../device/tauri';
 
-type Invoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-const invokeOf = (): Invoke | null =>
-  ((globalThis as { __TAURI_INTERNALS__?: { invoke?: Invoke } }).__TAURI_INTERNALS__?.invoke as Invoke | undefined) ?? null;
-
-export const inTauri = (): boolean => invokeOf() !== null;
+export { inTauri } from '../device/tauri';
 
 export const tauriTokenStore = (): TokenStore => {
   const invoke = invokeOf();

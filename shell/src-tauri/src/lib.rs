@@ -1,3 +1,4 @@
+mod device;
 mod ping;
 mod token;
 use git2::opts::set_ssl_cert_file;
@@ -98,7 +99,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![wait_for_server, token::token_keep, token::token_read, token::token_forget])
+        .invoke_handler(tauri::generate_handler![wait_for_server, token::token_keep, token::token_read, token::token_forget, device::device_secret])
         .plugin(tauri_plugin_log::Builder::default().build())
         .setup(|app: &mut App| setup_pankosmia(app))
         .run(tauri::generate_context!())

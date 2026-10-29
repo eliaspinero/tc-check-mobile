@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
+import { forgetJournal } from '../session/journal';
 import { t } from '../i18n';
 import type { Strings } from '../i18n/en';
 import { bookName, toolName } from '../i18n/books';
@@ -62,6 +63,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
     try {
       await source.enableNet();
       await source.pull(repoPath);
+      forgetJournal(repoPath);
       load();
     } catch (e) {
       setStatus({ state: 'failed', message: (e as Error).message });
