@@ -1,7 +1,8 @@
-import { fileURLToPath } from 'node:url';
+import { stateDir } from '../../dev-env/stateDir.mjs';
 
 // The tc-check lane: this repository's pankosmia-web rig on 19980 and the Vite dev client on 5180.
-// See dev-env/README.md. CLIENT_PORT moves Vite for a worktree whose sibling already holds 5180.
+// See dev-env/README.md. CLIENT_PORT moves Vite for a worktree whose sibling already holds 5180; the rig
+// and its state folder stay shared.
 export const RIG_URL = 'http://127.0.0.1:19980';
 export const CLIENT_PORT = Number(process.env.CLIENT_PORT ?? 5180);
 export const CLIENT_URL = `http://127.0.0.1:${CLIENT_PORT}/clients/tc-check/`;
@@ -78,8 +79,8 @@ export const placeProjectMissingUstV90 = async (target: string): Promise<void> =
   await writeIngredient(target, 'checking/resources.json', JSON.stringify(resources, null, 2));
 };
 
-/** The rig's repos directory on disk (where `npm run rig` keeps them), for a file:// remote. */
-export const RIG_REPOS_DIR = fileURLToPath(new URL('../../dev-env/state/pankosmia_repos', import.meta.url)).replace(/\\/g, '/');
+/** The rig's repos directory on disk, in the shared state folder (dev-env/stateDir.mjs), for a file:// remote. */
+export const RIG_REPOS_DIR = `${stateDir()}/pankosmia_repos`.replace(/\\/g, '/');
 
 export const addOrigin = async (repoPath: string, url: string): Promise<void> =>
   post(`/git/remote/add/${repoPath}?remote_name=origin&remote_url=${encodeURIComponent(url)}`);

@@ -1,16 +1,19 @@
 // Seed an empty rig (dev-env/README.md): the sample project, and every resource it pins, so the journeys
 // find what they expect. The only step that uses the network: each pin is downloaded once from Door43 into
-// dev-env/state/cache, and installed only when its metadata declares the pinned commit.
+// the state folder's cache/, and installed only when its metadata declares the pinned commit.
+// Which pins, their download URL and the commit check are the client's own (installPins.ts).
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
+import { declaredRevision, neededPins, sbZipUrl } from '../../client/src/resources/installPins.ts';
+import { stateDir } from '../stateDir.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RIG = 'http://127.0.0.1:19980/api';
-const REPOS = path.resolve(here, '../state/pankosmia_repos');
-const CACHE = path.resolve(here, '../state/cache');
+const REPOS = path.join(stateDir(), 'pankosmia_repos');
+const CACHE = path.join(stateDir(), 'cache');
 const SAMPLE = '_local_/_local_/sample_burrito';
 
 const listLocal = async () => (await (await fetch(`${RIG}/git/list-local-repos`)).json());
@@ -27,22 +30,10 @@ const placeSample = () => {
   console.log(`placed ${SAMPLE}`);
 };
 
-// The pins installPins.ts neededPins reads: both language sets' tN, TWL, tW, and the source panes.
-const neededPins = (resources) => {
-  const out = [];
-  for (const rung of ['primary', 'fallback'])
-    for (const slot of ['translationNotes', 'translationWordsLinks', 'translationWords']) {
-      const pin = resources.languageSets?.[rung]?.[slot];
-      if (pin) out.push(pin);
-    }
-  out.push(...(resources.extraScripture ?? []));
-  return [...new Map(out.map((p) => [`${p.repoPath.toLowerCase()}@${p.sha}`, p])).values()];
-};
-
 const download = async (pin) => {
   const file = path.join(CACHE, `${pin.repoPath.split('/').pop()}_${pin.version}.sb.zip`);
   if (!existsSync(file)) {
-    const url = `https://${pin.repoPath}/sb/${pin.version}.zip`;
+    const url = sbZipUrl(pin);
     console.log(`downloading ${url}`);
     const res = await fetch(url);
     if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
@@ -60,20 +51,21 @@ const unwrapChecked = (bytes, pin) => {
   const prefix = tops.size === 1 && !names.includes('metadata.json') ? `${[...tops][0]}/` : '';
   const files = {};
   for (const n of names) if (n.length > prefix.length) files[n.slice(prefix.length)] = entries[n];
-  const meta = JSON.parse(new TextDecoder().decode(files['metadata.json']));
-  const revision = Object.values(meta.identification?.primary?.dcs ?? {})[0]?.revision;
+  const revision = declaredRevision(JSON.parse(new TextDecoder().decode(files['metadata.json'])));
   if (revision !== pin.sha) throw new Error(`${pin.repoPath} ${pin.version} is commit ${revision}, the sample pins ${pin.sha}: not installed`);
   return files;
 };
 
 // Each pin installs as `_local_/_sideloaded_/<repo>`, the path installedPathOf also accepts, so the
 // journeys' own installs (owner-qualified, e2e/teardown.ts) never collide with the seed's. The files are
-// written to disk, as pankosmia-web's burrito/zipped unpacks them: that route takes at most 1 MiB, the
-// rig runs pankosmia-web as the phone does, and most pins are larger.
-const installPins = async () => {
+// written to disk, as pankosmia-web's burrito/zipped unpacks them: that route takes at most 1 MiB (#37).
+const pinTargets = () => {
   const resources = JSON.parse(readFileSync(path.join(here, 'sample-burrito/ingredients/checking/resources.json'), 'utf8'));
-  for (const pin of neededPins(resources)) {
-    const target = `_local_/_sideloaded_/${pin.repoPath.split('/').pop()}`;
+  return neededPins(resources).map((pin) => ({ pin, target: `_local_/_sideloaded_/${pin.repoPath.split('/').pop()}` }));
+};
+
+const installPins = async () => {
+  for (const { pin, target } of pinTargets()) {
     if ((await listLocal()).includes(target)) {
       console.log(`kept ${target}`);
       continue;
@@ -97,4 +89,11 @@ try {
 }
 placeSample();
 await installPins();
-console.log('seeded');
+// The rig must see what was written, or it runs on another state folder than this checkout's.
+const local = await listLocal();
+const unseen = [SAMPLE, ...pinTargets().map((p) => p.target)].filter((r) => !local.includes(r));
+if (unseen.length) {
+  console.error(`The rig on 19980 does not see ${unseen.join(', ')}: it runs on another state folder than ${stateDir()}. Restart it with npm run rig.`);
+  process.exit(1);
+}
+console.log(`seeded ${stateDir()}`);

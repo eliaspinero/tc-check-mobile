@@ -9,7 +9,8 @@ window, with the shell's own `pankosmia_resources`.
 | Rig | `http://127.0.0.1:19980` (every route under `/api`) |
 | Vite dev client | `http://127.0.0.1:5180/clients/tc-check/` (proxies `/api` to the rig) |
 
-The rig keeps its state in `dev-env/state/` (git-ignored). Like the shell, it makes that folder
+The rig keeps its state in `dev-env/state/` of the main checkout (git-ignored), whichever checkout or
+worktree starts it, seeds it or runs the journeys (`dev-env/stateDir.mjs`). Like the shell, it makes that folder
 pankosmia-web's home: `pankosmia_repos/` holds the projects and resources, `work/` is the working
 folder, and `cache/` holds the seed's downloads.
 
@@ -19,7 +20,8 @@ folder, and `cache/` holds the seed's downloads.
 npm run rig
 ```
 
-The first run builds it (a few minutes). It is ready when
+It first builds this checkout's client into the shell resources (pankosmia-web does not start
+without a registered client). The first run builds the rig too (a few minutes). It is ready when
 `curl http://127.0.0.1:19980/api/version` names `pkg_version` `0.18.15`.
 
 ## Seed it
