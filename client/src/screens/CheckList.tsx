@@ -13,6 +13,8 @@ import { gatewayOf } from './checkLabel';
 import { noteWithoutAcademyLinks } from './noteText';
 import { splitTitle } from './articleTitle';
 import ErrorLine from './ErrorLine';
+import Skeleton from './Skeleton';
+import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 
@@ -132,6 +134,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
         }
       />
       <ErrorLine text={failure(status)} />
+      {!session && status.state !== 'failed' && <Skeleton shape="checks" label={t('loadingChecks')} />}
       {session && session.state !== 'ready' && <p>{stateText(session)}</p>}
       {session?.state === 'ready' && (
         <>
@@ -147,21 +150,21 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
             </p>
           )}
           <div className="verses" key={shown}>
-            {verses.map(({ verse, checks }) => {
+            {verses.map(({ verse, checks }, v) => {
               const p = engine.progress(checks.map((c) => c.item));
               return (
-                <details key={verse} className="verse" data-testid="verse" open={verse === openVerse}>
+                <details key={verse} className="verse enter" style={stagger(v)} data-testid="verse" open={verse === openVerse}>
                   <summary>
                     <span>
                       {shown}:{verse} · {t('verseProgress', p)}
                     </span>
                     {p.decided === p.total && <span className="done-mark" aria-hidden="true">✓</span>}
                   </summary>
-                  {checks.map(({ item, index }) => {
+                  {checks.map(({ item, index }, row) => {
                     const done = engine.progress([item]).decided === 1;
                     const { label, quote, note } = labelOf(item);
                     return (
-                      <button key={`${item.contextId.checkId}-${index}`} className="row check-row" data-testid="check-row" onClick={() => onOpen(session, index)}>
+                      <button key={`${item.contextId.checkId}-${index}`} className="row check-row" style={stagger(row)} data-testid="check-row" onClick={() => onOpen(session, index)}>
                         <span className="check-name">
                           <span data-testid="row-label">{label}</span>
                           {quote && (

@@ -8,7 +8,8 @@ export default defineConfig({
   workers: 1,
   globalTeardown: './teardown.ts',
   reporter: [['list'], ['json', { outputFile: '../test-results/journeys.json' }]],
-  use: { ...devices['Pixel 7'], trace: 'retain-on-failure' },
+  // Reduced motion, so no animation decides when a journey can tap or read; j30 turns motion back on where it checks motion.
+  use: { ...devices['Pixel 7'], contextOptions: { reducedMotion: 'reduce' }, trace: 'retain-on-failure' },
   webServer: {
     command: `npm run dev -- --port ${CLIENT_PORT}`,
     cwd: '..',

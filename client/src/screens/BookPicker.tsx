@@ -6,6 +6,8 @@ import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import TopBar from './TopBar';
 import ErrorLine from './ErrorLine';
+import Skeleton from './Skeleton';
+import { stagger } from './stagger';
 import { LOADING, failure, ready, type Load } from './load';
 
 const TOOLS: Tool[] = ['translationWords', 'translationNotes'];
@@ -49,8 +51,9 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
     <main className="screen">
       <TopBar brand title={t('booksTitle')} sub={repoPath.split('/').slice(-2).join('/')} onBack={onBack} />
       <ErrorLine text={failure(scope)} />
-      {books?.map((book) => (
-        <div key={book} className="book">
+      {scope.state === 'loading' && <Skeleton shape="books" label={t('loadingBooks')} />}
+      {books?.map((book, i) => (
+        <div key={book} className="book enter" style={stagger(i)}>
           <span className="book-name">{bookName(book)}</span>
           <span className="book-tools">
             {TOOLS.map((tool) => {
