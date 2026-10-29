@@ -101,7 +101,7 @@ test('j7 polish: the project list and the book picker carry the app name in the 
   await openProject(page, context, 'sample_burrito');
   const accent = await page.evaluate(() => {
     const probe = document.createElement('span');
-    probe.style.color = 'var(--accent)';
+    probe.style.color = 'var(--text-accent)';
     document.body.append(probe);
     const c = getComputedStyle(probe).color;
     probe.remove();

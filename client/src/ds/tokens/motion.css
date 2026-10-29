@@ -1,0 +1,9 @@
+/* Copied from unfoldingWord/translationCore4 src/ds/tokens/motion.css at b1911407b00577bf04c4bed1499bd5ac45423b0b. Changes: none. */
+:root {
+  /* Composed, never playful. No bounce, no spring, no scale-on-press. */
+  --ease-standard: cubic-bezier(.2,0,.2,1); /* @kind other */
+  --dur-hover: 150ms; /* @kind other */
+  --dur-enter: 200ms; /* @kind other */
+  --dur-panel: 240ms; /* @kind other */
+  --stagger:   70ms; /* @kind other */
+}
