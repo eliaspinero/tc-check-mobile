@@ -171,6 +171,10 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const mark = (button: 'valid' | 'invalid') => record(engine.journal.patch(button, targetText, [...chosen]));
   // Decided as the list counts it (tC4 isDecided); an Invalid status shows as Invalid.
   const decided = engine.progress([item]).decided === 1 ? (item.status === 'invalid' ? 'invalid' : 'valid') : null;
+  const last = index === total - 1;
+  const after = last ? null : refOf(session.items[index + 1]);
+  const afterRef = after && (after.chapter !== ref.chapter || after.verse !== ref.verse) ? `${after.chapter}:${after.verse}` : null;
+  const bigNext = decided !== null || !session.journaled;
 
   return (
     <main className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe}>
@@ -217,23 +221,46 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           })}
         </>
       )}
-      <nav className="bottombar">
+      {/* tC4's Ocean sheet (owner's design B3·1). Deciding comes first; once decided, or where the project takes
+          no decisions, one large Next says which verse it goes to. There is only ever one Next. */}
+      <nav className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
+        <div className="progress" aria-hidden="true">
+          <span style={{ width: `${((index + 1) / total) * 100}%` }} />
+        </div>
+        <div className="nav-row">
+          <button className="link" onClick={prev} disabled={index === 0}>
+            ‹ {t('previous')}
+          </button>
+          <span className="count">
+            {index + 1} / {total}
+          </span>
+          {bigNext ? (
+            <span className="link-space" />
+          ) : (
+            <button className="link" onClick={next} disabled={last}>
+              {t('next')} ›
+            </button>
+          )}
+        </div>
         {session.journaled && ctx && (
-          <div className="decide">
+          <div className="decide" data-decided={decided ?? undefined}>
             <button className="invalid" aria-pressed={decided === 'invalid'} onClick={() => mark('invalid')} disabled={status.state === 'saving'}>
+              <span className="mark" aria-hidden="true">✕</span>
               {t('invalid')}
             </button>
             <button className="valid" aria-pressed={decided === 'valid'} onClick={() => mark('valid')} disabled={status.state === 'saving'}>
+              <span className="mark" aria-hidden="true">✓</span>
               {status.state === 'saving' ? t('saving') : t('valid')}
             </button>
           </div>
         )}
-        <button onClick={prev} disabled={index === 0}>
-          ‹ {t('previous')}
-        </button>
-        <button className="primary" onClick={next} disabled={index === total - 1}>
-          {t('next')} ›
-        </button>
+        {bigNext && (
+          <button className="next" onClick={next} disabled={last}>
+            <span>{t('next')}</span>
+            {/* Where Next goes, when it leaves this verse. */}
+            <span className="next-to">{afterRef && `${afterRef} `}›</span>
+          </button>
+        )}
       </nav>
       {picking && (
         <ChapterGrid

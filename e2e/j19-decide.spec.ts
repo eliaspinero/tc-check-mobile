@@ -100,27 +100,37 @@ const tokenBackground = (page: Page, token: string) =>
     return c;
   }, token);
 
-// #29 owner ruling: neither button is filled until it is the check's decision. Both rest on a soft tint of
-// their status colour, so neither reads as the default; the chosen one fills, and says so to a screen reader.
-test('j19: Valid and Invalid stay light until chosen, and the chosen one fills', async ({ page, context }) => {
+// #29 owner ruling (design B3·1): the decision sits on tC4's Ocean sheet. Neither button is filled until it is
+// the check's decision; the chosen one fills in its status colour and says so to a screen reader, the other
+// dims but can still be tapped to change it. Once decided, one large Next says which verse it goes to when it leaves this one, and the
+// small Next of the navigation row gives way to it, so there is always one Next.
+test('j19: on the Ocean sheet, the chosen decision fills and one large Next says where it goes', async ({ page, context }) => {
   await openUndecided(page, context);
-  const valid = page.getByRole('button', { name: 'Valid', exact: true });
-  const invalid = page.getByRole('button', { name: 'Invalid', exact: true });
-  const invalidSoft = await tokenBackground(page, '--fill-invalid-soft');
-  expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--fill-valid-soft'));
-  expect(await backgroundOf(invalid)).toBe(invalidSoft);
+  const bar = page.getByTestId('decide-bar');
+  const valid = bar.getByRole('button', { name: 'Valid', exact: true });
+  const invalid = bar.getByRole('button', { name: 'Invalid', exact: true });
+  const nexts = page.getByRole('button', { name: /^Next/ });
+  await expect.poll(() => backgroundOf(bar)).toBe(await tokenBackground(page, '--uw-ocean'));
+  const rest = await tokenBackground(page, '--fill-on-ocean');
+  await expect.poll(() => backgroundOf(valid)).toBe(rest);
+  await expect.poll(() => backgroundOf(invalid)).toBe(rest);
   await expect(valid).toHaveAttribute('aria-pressed', 'false');
+  await expect(nexts).toHaveCount(1);
+  await expect(nexts).toHaveText(/^Next ›$/);
+  // The fills fade in over tC4's --dur-hover, so a colour is read once it settles.
   await valid.click();
   await expect(page.getByTestId('decided')).toHaveText('Valid');
   await expect(valid).toHaveAttribute('aria-pressed', 'true');
-  expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--tc-valid-strong'));
-  expect(await backgroundOf(invalid)).toBe(invalidSoft);
+  await expect.poll(() => backgroundOf(valid)).toBe(await tokenBackground(page, '--tc-valid-strong'));
+  await expect.poll(() => backgroundOf(invalid)).toBe(rest);
+  await expect(nexts).toHaveCount(1);
+  await expect(nexts).toHaveText(/^Next\s*(\d+:\d+ )?›$/);
   await invalid.click();
   await expect(page.getByTestId('decided')).toHaveText('Invalid');
   await expect(invalid).toHaveAttribute('aria-pressed', 'true');
   await expect(valid).toHaveAttribute('aria-pressed', 'false');
-  expect(await backgroundOf(invalid)).toBe(await tokenBackground(page, '--tc-invalid'));
-  expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--fill-valid-soft'));
+  await expect.poll(() => backgroundOf(invalid)).toBe(await tokenBackground(page, '--tc-invalid'));
+  await expect.poll(() => backgroundOf(valid)).toBe(rest);
 });
 
 test('j19: a decision survives closing the app right after it shows, even before its derived file is written', async ({ page, context }) => {
