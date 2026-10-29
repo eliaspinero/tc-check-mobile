@@ -7,7 +7,7 @@ Forked from [`pankosmia/mobile-app-template`](https://github.com/pankosmia/mobil
 at `9a2ebe81ac45df219e67dee179dd66c71e6f161f` (2026-08-31). Changes:
 
 - `pankosmia_web` pinned to `=0.18.15`, the version translationCore 4 pins.
-- Product `tC Check`, identifier `io.github.eliaspinero.tccheck`, homepage `tc-check`.
+- Product `tC Check`, identifier `org.unfoldingword.tccheck`, homepage `tc-check`.
 - The template's bundled clients are removed; `app_setup.json` registers `/tc-check` only.
 - `src/App.jsx` opens `/clients/tc-check/` instead of `/clients/main`.
 - `src-tauri/src/token.rs`: three commands that keep the Door43 token in the app's private
@@ -72,7 +72,8 @@ Both workflows share their setup in `.github/actions/android-build`.
 ## Release on the Play Store
 
 `.github/workflows/android-release.yml` builds the store release: the client bound to
-`git.door43.org`, an arm64 APK and AAB signed with the release key. A tag `v*` or a manual run from
+`git.door43.org`, an APK and AAB for arm64 and armv7 (older 32-bit
+phones) signed with the release key. A tag `v*` or a manual run from
 the Actions tab builds one and attaches `tc-check-<version>-<code>.apk` and `.aab` as the
 `tc-check-release` artifact. A pull request that touches the build rehearses it with a key made for
 that run and publishes nothing.
@@ -95,7 +96,7 @@ that run and publishes nothing.
   data (the Door43 session and the cloned projects) across the update. The client and the other
   embedded resources are copied into that private data on the first start; the first start of a
   newer build replaces that copy (`refresh_resources` in `src-tauri/src/lib.rs`).
-- **Play Console.** Create the app with the package id `io.github.eliaspinero.tccheck` (it cannot
+- **Play Console.** Create the app with the package id `org.unfoldingword.tccheck` (it cannot
   change after the first upload) and enrol in Play App Signing; the release key becomes the upload
   key. The first AAB goes up by hand on the internal testing track. After that, set the secret
   `PLAY_SERVICE_ACCOUNT_JSON` (a service account with release rights on the app) and every release
