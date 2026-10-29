@@ -66,3 +66,39 @@ Android 9 and later block plain `http://` in the WebView, and the local server i
 
 The APK must be signed (`keytool` and `apksigner`); the workflow shows how, and
 `build-android.sh` is the template's script. Never commit a keystore.
+
+Both workflows share their setup in `.github/actions/android-build`.
+
+## Release on the Play Store
+
+`.github/workflows/android-release.yml` builds the store release: the client bound to
+`git.door43.org`, an arm64 APK and AAB signed with the release key. A tag `v*` or a manual run from
+the Actions tab builds one and attaches `tc-check-<version>-<code>.apk` and `.aab` as the
+`tc-check-release` artifact. A pull request that touches the build rehearses it with a key made for
+that run and publishes nothing.
+
+- **Version.** `versionName` is `version` in the root `package.json`; `versionCode` is the workflow's
+  run number, so it grows with every run. Renaming the workflow file restarts the run number: do not.
+- **Signing key.** Made once, kept outside the repository, never replaced: a release signed with
+  another key does not install over the last one, and the Play Console refuses it.
+
+  ```bash
+  keytool -genkeypair -keystore tc-check-release.keystore -alias tc-check -keyalg RSA -keysize 4096 -validity 10000
+  ```
+
+  Keep the keystore and its password in a password manager, then set three repository secrets:
+  `ANDROID_RELEASE_KEYSTORE` (the keystore as base64, `base64 -w0 tc-check-release.keystore`),
+  `ANDROID_RELEASE_KEYSTORE_PASSWORD` and `ANDROID_RELEASE_KEY_ALIAS` (`tc-check`). Without them a
+  release run fails; it never signs with a key of its own.
+- **Same key, every build.** The run log prints the certificate's SHA-256 digest; it must be the
+  same in every release. Two releases install over each other, and Android keeps the app's private
+  data (the Door43 session and the cloned projects) across the update.
+- **Play Console.** Create the app with the package id `io.github.eliaspinero.tccheck` (it cannot
+  change after the first upload) and enrol in Play App Signing; the release key becomes the upload
+  key. The first AAB goes up by hand on the internal testing track. After that, set the secret
+  `PLAY_SERVICE_ACCOUNT_JSON` (a service account with release rights on the app) and every release
+  run uploads its AAB to the internal track as a draft, which you roll out from the console.
+  The phone installs from the Play Store a build signed by Google, not by the release key, so a
+  build from the store and an APK from the artifact do not install over each other.
+- **Store listing.** The title, short and full descriptions in English and Spanish are in
+  `android/store-listing/<locale>/` (the fastlane metadata layout). Copy them into the console.
