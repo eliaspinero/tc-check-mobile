@@ -79,13 +79,12 @@ test('j29: every button on the check screen is at least 44 px tall', async ({ pa
   expect(heights.filter(([, h]) => (h as number) < 44)).toEqual([]);
 });
 
-// A target verse holds whatever the translator typed: Latin Extended letters, Vietnamese, Cyrillic. Each glyph
-// must come from Charis SIL, not from a fallback face mid-word. Not covered: a base letter with a combining
-// mark that no subset holds together (ɛ́ as ɛ + U+0301); tC4's subsets split them, so it falls back there too.
+// A target verse holds whatever the translator typed: letters with combining tone marks (ɛ́ as ɛ + U+0301),
+// Latin Extended, Vietnamese, Cyrillic. Each glyph must come from Charis SIL, not from a fallback face mid-word.
 test('j29: a target verse in any script the translator types stays in Charis SIL', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await openCheck(page, context);
-  const text = 'ñá ŋ ɛ ɔ · Việt Nam · Чтение';
+  const text = 'kɛ́ mɔ̀ ñá ŋ · Việt Nam · Чтение';
   await page.getByTestId('target').evaluate((el, t) => {
     const p = document.createElement('p');
     p.id = 'script-probe';
@@ -102,7 +101,8 @@ test('j29: a target verse in any script the translator types stays in Charis SIL
   const { root } = await cdp.send('DOM.getDocument');
   const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#script-probe' });
   const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
-  expect(fonts.map((f) => f.familyName)).toEqual(['Charis SIL']);
+  // SIL's 7.000 files name the face "Charis" inside; the stylesheet calls it "Charis SIL", as tC4 does.
+  expect(fonts.map((f) => f.familyName)).toEqual([expect.stringMatching(/^Charis( SIL)?$/)]);
 });
 
 const luminance = (rgb: string) => {
