@@ -1,27 +1,36 @@
-// Every file in client/src/checking/ and its subfolders is copied from translationCore 4 and must say so in its
-// first line:  // Copied from unfoldingWord/translationCore4 <path> at <commit>. Changes: <...>.
+// Every code file in client/src/checking/ and every stylesheet in client/src/ds/ (and their subfolders) is copied
+// from translationCore 4 and must say so in its first line:
+//   // Copied from unfoldingWord/translationCore4 <path> at <commit>. Changes: <...>.
+//   /* Copied from unfoldingWord/translationCore4 <path> at <commit>. Changes: <...>. */
 // With TC4_DIR set to a tC4 checkout, the named path must also exist at the named commit.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const dir = path.resolve(import.meta.dirname, '../client/src/checking');
-const HEADER = /^\/\/ Copied from unfoldingWord\/translationCore4 (\S+) at ([0-9a-f]{40})\. Changes: .+\.$/;
+const src = path.resolve(import.meta.dirname, '../client/src');
+const COPIED = [
+  { dir: 'checking', files: /\.(ts|tsx|js|mjs)$/, header: /^\/\/ Copied from unfoldingWord\/translationCore4 (\S+) at ([0-9a-f]{40})\. Changes: .+\.$/ },
+  { dir: 'ds', files: /\.css$/, header: /^\/\* Copied from unfoldingWord\/translationCore4 (\S+) at ([0-9a-f]{40})\. Changes: .+\. \*\/$/ },
+];
 const tc4 = process.env.TC4_DIR;
 const failures = [];
 
-for (const name of fs.readdirSync(dir, { recursive: true }).filter((f) => /\.(ts|tsx|js|mjs)$/.test(f)).sort()) {
-  const first = fs.readFileSync(path.join(dir, name), 'utf8').split(/\r?\n/, 1)[0];
-  const m = HEADER.exec(first);
-  if (!m) {
-    failures.push(`${name}: first line is not the provenance header`);
-    continue;
-  }
-  if (tc4) {
-    try {
-      execFileSync('git', ['-C', tc4, 'cat-file', '-e', `${m[2]}:${m[1]}`], { stdio: 'ignore' });
-    } catch {
-      failures.push(`${name}: ${m[1]} does not exist at ${m[2]} in ${tc4}`);
+for (const { dir, files, header } of COPIED) {
+  const root = path.join(src, dir);
+  for (const name of fs.readdirSync(root, { recursive: true }).filter((f) => files.test(f)).sort()) {
+    const shown = path.join(dir, name);
+    const first = fs.readFileSync(path.join(root, name), 'utf8').split(/\r?\n/, 1)[0];
+    const m = header.exec(first);
+    if (!m) {
+      failures.push(`${shown}: first line is not the provenance header`);
+      continue;
+    }
+    if (tc4) {
+      try {
+        execFileSync('git', ['-C', tc4, 'cat-file', '-e', `${m[2]}:${m[1]}`], { stdio: 'ignore' });
+      } catch {
+        failures.push(`${shown}: ${m[1]} does not exist at ${m[2]} in ${tc4}`);
+      }
     }
   }
 }
