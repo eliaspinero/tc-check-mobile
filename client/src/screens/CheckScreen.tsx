@@ -42,7 +42,6 @@ function TargetVerse({ text, words, selected, onToggle }: { text: string; words:
     if (at < 0) return;
     if (at > cursor) parts.push(text.slice(cursor, at));
     const on = selected.has(i);
-    const Tag = on ? 'mark' : 'span';
     const toggle = onToggle
       ? {
           role: 'button',
@@ -56,10 +55,11 @@ function TargetVerse({ text, words, selected, onToggle }: { text: string; words:
           },
         }
       : {};
+    // One element whether chosen or not, so a toggle keeps the keyboard and screen-reader focus on it.
     parts.push(
-      <Tag key={i} {...(on && { 'data-sel': true, className: 'sel' })} {...toggle}>
+      <span key={i} {...(on && { 'data-sel': true, className: 'sel' })} {...toggle}>
         {w}
-      </Tag>,
+      </span>,
     );
     cursor = at + w.length;
   });

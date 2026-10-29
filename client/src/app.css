@@ -24,7 +24,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .pane.target p { font-size: 19px; }
 .lb { font-size: 12px; color: var(--muted); }
 mark.hl { background: var(--hl); color: inherit; border-radius: 3px; padding: 0 1px; }
-mark.sel { background: var(--accent-bg); color: var(--accent); border-radius: 3px; padding: 0 1px; }
+.sel { background: var(--accent-bg); color: var(--accent); border-radius: 3px; padding: 0 1px; }
 
 /* Top bar on every screen: back arrow, the place, the screen's actions. */
 .topbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: -16px -16px 0; padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }

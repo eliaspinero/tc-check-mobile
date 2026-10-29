@@ -104,6 +104,40 @@ test('j19: with Door43 unreachable, a decision is still recorded on the phone', 
   expect((await phoneDecisions()).decisions).toHaveLength(1);
 });
 
+test('j19: moving on while a decision saves keeps the checker where they went', async ({ page, context }) => {
+  await openUndecided(page, context);
+  // A slow phone: the decision file write takes a while to land.
+  const derivedWrite = (url: URL) => url.pathname.startsWith('/api/burrito/ingredient/raw/') && url.searchParams.get('ipath') === 'checking/translationWords/TIT.json';
+  let landed = false;
+  await page.route(derivedWrite, async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+    landed = true;
+  });
+  await expect(page.getByTestId('check-header')).toHaveText(/ 1 \/ \d+$/);
+  await page.getByRole('button', { name: 'Valid', exact: true }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByTestId('check-header')).toHaveText(/ 2 \/ \d+$/);
+  await expect.poll(() => landed, { timeout: 10_000 }).toBe(true);
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('check-header')).toHaveText(/ 2 \/ \d+$/);
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await expect(page.getByTestId('decided')).toHaveText('Valid');
+});
+
+test('j19: a word toggled with the keyboard keeps the focus', async ({ page, context }) => {
+  await openUndecided(page, context);
+  const word = page.getByTestId('target').getByRole('button').first();
+  await word.focus();
+  await page.keyboard.press('Space');
+  await expect(word).toHaveAttribute('aria-pressed', 'true');
+  await expect(word).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(word).toHaveAttribute('aria-pressed', 'false');
+  await expect(word).toBeFocused();
+});
+
 test('j19: a project tC4 never opened says so and offers no decision', async ({ page, context }) => {
   await placeRepo(SAMPLE_PROJECT, PROJECT);
   await openUndecided(page, context);
