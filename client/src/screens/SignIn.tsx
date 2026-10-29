@@ -3,32 +3,32 @@ import type { Door43Api, Door43Session } from '../door43/door43Api';
 import type { TokenStore } from '../door43/tokenStore';
 import { t } from '../i18n';
 import { door43ErrorText } from './door43Error';
+import ErrorLine from './ErrorLine';
+import { IDLE, failure, type Run } from './load';
 
 export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; store: TokenStore; onSignedIn: (s: Door43Session) => void }) {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<Run<{ state: 'signingIn' }>>(IDLE);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!login.trim() || !password) {
-      setError(t('enterCredentials'));
+      setStatus({ state: 'failed', message: t('enterCredentials') });
       return;
     }
-    setBusy(true);
-    setError(null);
+    setStatus({ state: 'signingIn' });
     try {
       const session = await api.signIn(login.trim(), password);
       setPassword('');
       await store.keep(session.token);
       onSignedIn(session);
+      setStatus(IDLE);
     } catch (err) {
-      setError(door43ErrorText(err, true));
-    } finally {
-      setBusy(false);
+      setStatus({ state: 'failed', message: door43ErrorText(err, true) });
     }
   };
+  const signingIn = status.state === 'signingIn';
 
   return (
     <form className="screen" onSubmit={submit}>
@@ -48,13 +48,9 @@ export default function SignIn({ api, store, onSignedIn }: { api: Door43Api; sto
         {t('password')}
         <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </label>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <button className="primary" type="submit" disabled={busy}>
-        {busy ? t('signingIn') : t('signIn')}
+      <ErrorLine text={failure(status)} />
+      <button className="primary" type="submit" disabled={signingIn}>
+        {signingIn ? t('signingIn') : t('signIn')}
       </button>
     </form>
   );

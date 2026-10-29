@@ -32,13 +32,18 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     }
     if (!ok) throw new ServerError(route, 200, reasonOf(body));
   };
-  const readJsonOrNull = async <T>(repoPath: string, ipath: string): Promise<T | null> => {
+  // An ingredient the repo does not have answers 404 or 400: null, not an error.
+  const ingredientOrNull = async (repoPath: string, ipath: string): Promise<string | null> => {
     try {
-      return JSON.parse(await text(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc(ipath)}`)) as T;
+      return await text(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc(ipath)}`);
     } catch (e) {
       if (e instanceof ServerError && (e.status === 404 || e.status === 400)) return null;
       throw e;
     }
+  };
+  const readJsonOrNull = async <T>(repoPath: string, ipath: string): Promise<T | null> => {
+    const body = await ingredientOrNull(repoPath, ipath);
+    return body === null ? null : (JSON.parse(body) as T);
   };
 
   return {
@@ -55,12 +60,8 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     readResources: (repoPath) => readJsonOrNull<ResourcesFile>(repoPath, 'checking/resources.json'),
     readDecisions: (repoPath, tool, book) => readJsonOrNull<DecisionFile>(repoPath, `checking/${tool}/${book}.json`),
     readVersification: async (repoPath) => {
-      try {
-        return { name: UNRECORDED_SCHEME, bytes: await text(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc('vrs.json')}`) };
-      } catch (e) {
-        if (e instanceof ServerError && (e.status === 404 || e.status === 400)) return null;
-        throw e;
-      }
+      const bytes = await ingredientOrNull(repoPath, 'vrs.json');
+      return bytes === null ? null : { name: UNRECORDED_SCHEME, bytes };
     },
     getVersifications: async () => JSON.parse(await text('/content-utils/versifications')) as string[],
     getVersification: async (name) => JSON.parse(await text(`/content-utils/versification/${enc(name)}`)) as unknown,

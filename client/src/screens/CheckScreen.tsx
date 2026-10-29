@@ -12,6 +12,9 @@ import Markdown from './Markdown';
 import { chapterStates, refOf } from './chapters';
 import { gatewayOf, verseOf } from './checkLabel';
 import { noteWithoutAcademyLinks } from './noteText';
+import { splitTitle } from './articleTitle';
+import ErrorLine from './ErrorLine';
+import { LOADING, failure, ready, type Load } from './load';
 
 type Props = {
   repoPath: string;
@@ -56,10 +59,8 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
     source.readText(ctx.twPath, `payload/${category}/${c.groupId}.md`).then(
       (md) => {
         if (!current) return;
-        const lines = md.split(/\r?\n/);
-        const first = lines.findIndex((l) => l.startsWith('# '));
-        const title = first >= 0 ? lines[first].slice(2).trim() : c.groupId;
-        setArticle({ title, blocks: engine.articleBlocks(lines.filter((_, i) => i !== first).join('\n')) });
+        const { title, body } = splitTitle(md);
+        setArticle({ title: title ?? c.groupId, blocks: engine.articleBlocks(body) });
       },
       () => current && setArticle({ title: c.groupId, blocks: engine.articleBlocks(t('articleMissing')) }),
     );
@@ -96,8 +97,8 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
 }
 
 export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onBack }: Props) {
-  const [ctx, setCtx] = useState<CheckContext | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [context, setContext] = useState<Load<CheckContext>>(LOADING);
+  const ctx = ready(context);
   const [picking, setPicking] = useState(false);
   const total = session.items.length;
   const next = () => index < total - 1 && onIndex(index + 1);
@@ -105,7 +106,10 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const swipe = useSwipe(next, prev);
 
   useEffect(() => {
-    loadCheckContext(repoPath, book, session.rung, source, engine).then(setCtx, (e: Error) => setError(e.message));
+    loadCheckContext(repoPath, book, session.rung, source, engine).then(
+      (value) => setContext({ state: 'ready', value }),
+      (e: Error) => setContext({ state: 'failed', message: e.message }),
+    );
   }, [repoPath, book, session.rung, source, engine]);
 
   const item = session.items[index];
@@ -128,11 +132,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         onBack={onBack}
         onTitle={() => setPicking(true)}
       />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
+      <ErrorLine text={failure(context)} />
       {ctx && (
         <>
           <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
