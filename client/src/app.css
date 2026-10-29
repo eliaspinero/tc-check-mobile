@@ -8,7 +8,8 @@ label { display: flex; flex-direction: column; gap: var(--space-1); font-size: v
 input { font-family: inherit; font-size: var(--fs-title-sm); min-height: var(--space-20); padding: var(--space-4); border: var(--stroke) solid var(--border-input); border-radius: var(--radius-input); background: var(--surface-card); color: var(--text-body); box-sizing: border-box; }
 /* Every button is a 44 px touch target, whatever tC4's desktop controls measure. */
 button { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
+/* tC4's Inspire fill carries white text at 2.6:1; its 700 step keeps the Inspire hue and passes AA (5.6:1). */
+button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
 .error { color: var(--text-invalid); font-size: var(--fs-ui-md); }
 .row { display: flex; justify-content: space-between; align-items: center; padding: var(--space-5) var(--space-1); border-bottom: var(--stroke-hair) solid var(--border); }
 .muted { color: var(--text-tertiary); font-size: var(--fs-ui-sm); }
@@ -89,7 +90,9 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .bottombar .decide .valid { background: var(--tc-valid-strong); color: var(--text-inverse); border-color: var(--tc-valid-strong); box-shadow: var(--shadow-raised); }
 .bottombar .decide .invalid { border-color: var(--border-danger); color: var(--text-invalid); }
 /* The decision under the target verse is interface text, not scripture. */
-.pane .decided { margin: var(--space-2) 0 0; font-family: var(--font-ui); font-size: var(--fs-ui-md); line-height: var(--lh-ui); font-weight: var(--fw-heavy); color: var(--text-accent); }
+.pane .decided { margin: var(--space-2) 0 0; font-family: var(--font-ui); font-size: var(--fs-ui-md); line-height: var(--lh-ui); font-weight: var(--fw-heavy); }
+.pane .decided[data-status='valid'] { color: var(--text-valid); }
+.pane .decided[data-status='invalid'] { color: var(--text-invalid); }
 [role='button'][aria-pressed] { cursor: pointer; }
 button:disabled { opacity: 0.45; }
 

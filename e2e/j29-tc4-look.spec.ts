@@ -78,3 +78,52 @@ test('j29: every button on the check screen is at least 44 px tall', async ({ pa
   const heights = await page.locator('button:visible').evaluateAll((els) => els.map((el) => [el.textContent?.trim() || el.getAttribute('aria-label'), el.getBoundingClientRect().height]));
   expect(heights.filter(([, h]) => (h as number) < 44)).toEqual([]);
 });
+
+// A target verse holds whatever the translator typed: Latin Extended letters, Vietnamese, Cyrillic. Each glyph
+// must come from Charis SIL, not from a fallback face mid-word. Not covered: a base letter with a combining
+// mark that no subset holds together (ɛ́ as ɛ + U+0301); tC4's subsets split them, so it falls back there too.
+test('j29: a target verse in any script the translator types stays in Charis SIL', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await openCheck(page, context);
+  const text = 'ñá ŋ ɛ ɔ · Việt Nam · Чтение';
+  await page.getByTestId('target').evaluate((el, t) => {
+    const p = document.createElement('p');
+    p.id = 'script-probe';
+    p.textContent = t;
+    el.append(p);
+  }, text);
+  await page.evaluate(async (t) => {
+    await document.fonts.load('16px "Charis SIL"', t);
+    await document.fonts.ready;
+  }, text);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('DOM.enable');
+  await cdp.send('CSS.enable');
+  const { root } = await cdp.send('DOM.getDocument');
+  const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#script-probe' });
+  const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
+  expect(fonts.map((f) => f.familyName)).toEqual(['Charis SIL']);
+});
+
+const luminance = (rgb: string) => {
+  const [r, g, b] = rgb.match(/\d+/g)!.slice(0, 3).map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a: string, b: string) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+test('j29: filled buttons keep WCAG AA contrast, light and dark', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await openCheck(page, context);
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const next = page.getByRole('button', { name: /^Next/ });
+    const [fg, bg] = await next.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]);
+    expect(contrast(fg, bg), `${scheme} Next ${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
+  }
+});

@@ -194,7 +194,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
             <span className="lb">{t('yourTranslation')}</span>
             <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={chosen} onToggle={session.journaled ? toggle : undefined} />}</p>
             {decided && (
-              <p className="decided" data-testid="decided">
+              <p className="decided" data-testid="decided" data-status={decided}>
                 {t(decided)}
               </p>
             )}

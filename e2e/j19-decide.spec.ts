@@ -61,13 +61,27 @@ test('j19: tapped words and Valid write one sealed journal action as the phone, 
   await expect(page.getByTestId('progress')).toHaveText(new RegExp(`^${before + 1} of`));
 });
 
+const colourOf = (el: Locator) => el.evaluate((e) => getComputedStyle(e).color);
+const tokenColour = (page: Page, token: string) =>
+  page.evaluate((t) => {
+    const probe = document.createElement('span');
+    probe.style.color = `var(${t})`;
+    document.body.append(probe);
+    const c = getComputedStyle(probe).color;
+    probe.remove();
+    return c;
+  }, token);
+
 test('j19: Valid with no word tapped records nothing to select, and Invalid records invalid', async ({ page, context }) => {
   await openUndecided(page, context);
   await page.getByRole('button', { name: 'Valid', exact: true }).click();
   await expect(page.getByTestId('decided')).toHaveText('Valid');
+  // #29: the decision shows in its tC4 status colour, as tC4's status dots do.
+  expect(await colourOf(page.getByTestId('decided'))).toBe(await tokenColour(page, '--text-valid'));
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Invalid' }).click();
   await expect(page.getByTestId('decided')).toHaveText('Invalid');
+  expect(await colourOf(page.getByTestId('decided'))).toBe(await tokenColour(page, '--text-invalid'));
   const { decisions } = await phoneDecisions();
   expect(decisions.map((d) => ({ selections: d.selections, nothingToSelect: d.nothingToSelect, status: d.status }))).toEqual([
     { selections: false, nothingToSelect: true, status: 'valid' },
