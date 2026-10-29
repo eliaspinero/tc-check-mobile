@@ -220,10 +220,10 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       <nav className="bottombar">
         {session.journaled && ctx && (
           <div className="decide">
-            <button className="invalid" onClick={() => mark('invalid')} disabled={status.state === 'saving'}>
+            <button className="invalid" aria-pressed={decided === 'invalid'} onClick={() => mark('invalid')} disabled={status.state === 'saving'}>
               {t('invalid')}
             </button>
-            <button className="valid" onClick={() => mark('valid')} disabled={status.state === 'saving'}>
+            <button className="valid" aria-pressed={decided === 'valid'} onClick={() => mark('valid')} disabled={status.state === 'saving'}>
               {status.state === 'saving' ? t('saving') : t('valid')}
             </button>
           </div>

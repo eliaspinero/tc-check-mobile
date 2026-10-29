@@ -89,6 +89,40 @@ test('j19: Valid with no word tapped records nothing to select, and Invalid reco
   ]);
 });
 
+const backgroundOf = (el: Locator) => el.evaluate((e) => getComputedStyle(e).backgroundColor);
+const tokenBackground = (page: Page, token: string) =>
+  page.evaluate((t) => {
+    const probe = document.createElement('span');
+    probe.style.backgroundColor = `var(${t})`;
+    document.body.append(probe);
+    const c = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return c;
+  }, token);
+
+// #29 owner ruling: neither button is filled until it is the check's decision. Valid rests on a soft green,
+// Invalid on an outline; the chosen one fills in its status colour, and says so to a screen reader.
+test('j19: Valid and Invalid stay light until chosen, and the chosen one fills', async ({ page, context }) => {
+  await openUndecided(page, context);
+  const valid = page.getByRole('button', { name: 'Valid', exact: true });
+  const invalid = page.getByRole('button', { name: 'Invalid', exact: true });
+  const card = await tokenBackground(page, '--surface-card');
+  expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--fill-valid-soft'));
+  expect(await backgroundOf(invalid)).toBe(card);
+  await expect(valid).toHaveAttribute('aria-pressed', 'false');
+  await valid.click();
+  await expect(page.getByTestId('decided')).toHaveText('Valid');
+  await expect(valid).toHaveAttribute('aria-pressed', 'true');
+  expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--tc-valid-strong'));
+  expect(await backgroundOf(invalid)).toBe(card);
+  await invalid.click();
+  await expect(page.getByTestId('decided')).toHaveText('Invalid');
+  await expect(invalid).toHaveAttribute('aria-pressed', 'true');
+  await expect(valid).toHaveAttribute('aria-pressed', 'false');
+  expect(await backgroundOf(invalid)).toBe(await tokenBackground(page, '--tc-invalid'));
+  expect(await backgroundOf(valid)).toBe(await tokenBackground(page, '--fill-valid-soft'));
+});
+
 test('j19: a decision survives closing the app right after it shows, even before its derived file is written', async ({ page, context }) => {
   await openUndecided(page, context);
   // The derived file write never lands: the app "closes" between the journal write and it.
