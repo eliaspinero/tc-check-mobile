@@ -8,6 +8,8 @@
     "build": "vite build --config client/vite.config.ts",
     "typecheck": "tsc --noEmit -p client/tsconfig.json",
     "journeys": "playwright test -c e2e/playwright.config.ts",
+    "rig": "node scripts/build-client-into-shell.mjs --qa && cargo run --release --manifest-path dev-env/rig/Cargo.toml -- dev-env/state",
+    "rig:seed": "node dev-env/seed/seed.mjs",
     "check:provenance": "node scripts/check-provenance.mjs",
     "lint": "eslint client/src"
   },

@@ -5,7 +5,8 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
 
 ## Rules
 
-- The Pankosmia server pin equals tC4's pin: `pankosmia_web` `0.18.15`. It moves when tC4's moves.
+- The Pankosmia server pin is `pankosmia_web` `0.18.15`, the same in `shell/src-tauri` and the
+  journeys' rig `dev-env/rig` (`j35` checks it). It moves only through an issue.
 - The client is served at `/clients/tc-check`. Every server route is under `/api`.
 - The Door43 server is `https://qa.door43.org` in a development build and
   `https://git.door43.org` otherwise. The build chooses, never the user.
