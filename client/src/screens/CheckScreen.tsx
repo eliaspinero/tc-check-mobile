@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { ArticleBlock, CheckingEngine, CheckItem, Selection, Tool } from '../engine/CheckingEngine';
+import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
-import type { Session } from '../session/loadSession';
+import { loadSession, type Session } from '../session/loadSession';
+import { decide } from '../session/journal';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
@@ -14,7 +15,7 @@ import { gatewayOf, verseOf } from './checkLabel';
 import { noteWithoutAcademyLinks } from './noteText';
 import { splitTitle } from './articleTitle';
 import ErrorLine from './ErrorLine';
-import { LOADING, failure, ready, type Load } from './load';
+import { IDLE, LOADING, failure, ready, type Load, type Run } from './load';
 
 type Props = {
   repoPath: string;
@@ -25,19 +26,41 @@ type Props = {
   source: ProjectSource;
   engine: CheckingEngine;
   onIndex: (index: number) => void;
+  /** The session again after a decision, so the list and its progress follow at once. */
+  onDecided: (session: Session) => void;
   onBack: () => void;
 };
 
-/** The target verse text with each selectable word wrapped, punctuation and spacing kept as written. */
-function TargetVerse({ text, words, selected }: { text: string; words: string[]; selected: number[] }) {
-  const sel = new Set(selected);
+/** The target verse text with each selectable word wrapped, punctuation and spacing kept as written.
+ * With `onToggle`, a word is a toggle (tap, or Enter or Space): a span, so a long press still selects
+ * and copies the verse's text. */
+function TargetVerse({ text, words, selected, onToggle }: { text: string; words: string[]; selected: ReadonlySet<number>; onToggle?: (i: number) => void }) {
   const parts: React.ReactNode[] = [];
   let cursor = 0;
   words.forEach((w, i) => {
     const at = text.indexOf(w, cursor);
     if (at < 0) return;
     if (at > cursor) parts.push(text.slice(cursor, at));
-    parts.push(sel.has(i) ? <mark key={i} data-sel className="sel">{w}</mark> : <span key={i}>{w}</span>);
+    const on = selected.has(i);
+    const Tag = on ? 'mark' : 'span';
+    const toggle = onToggle
+      ? {
+          role: 'button',
+          tabIndex: 0,
+          'aria-pressed': on,
+          onClick: () => onToggle(i),
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            onToggle(i);
+          },
+        }
+      : {};
+    parts.push(
+      <Tag key={i} {...(on && { 'data-sel': true, className: 'sel' })} {...toggle}>
+        {w}
+      </Tag>,
+    );
     cursor = at + w.length;
   });
   parts.push(text.slice(cursor));
@@ -96,7 +119,7 @@ function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool
   );
 }
 
-export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onBack }: Props) {
+export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onDecided, onBack }: Props) {
   const [context, setContext] = useState<Load<CheckContext>>(LOADING);
   const ctx = ready(context);
   const [picking, setPicking] = useState(false);
@@ -118,9 +141,39 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const occurrence = Number(item.contextId.occurrence);
   const targetText = ctx ? engine.verseText(verseOf(ctx.target, item)) : '';
   const target = ctx ? engine.targetTokens(targetText, item.selections as Selection[] | false) : null;
+  // The words tapped on a check; on another check, or before the first tap, the stored selection.
+  const [tapped, setTapped] = useState<{ index: number; words: Set<number> } | null>(null);
+  const chosen: ReadonlySet<number> = tapped?.index === index ? tapped.words : new Set(target?.selected ?? []);
+  const toggle = (i: number) => {
+    const words = new Set(chosen);
+    if (words.has(i)) words.delete(i);
+    else words.add(i);
+    setTapped({ index, words });
+  };
+
+  const [status, setStatus] = useState<Run<{ state: 'saving' }>>(IDLE);
+  const record = async (patch: DecisionPatch) => {
+    if (!session.pin) return;
+    setStatus({ state: 'saving' });
+    try {
+      await decide(
+        { repoPath, tool, book, item, patch, resource: { repoPath: session.pin.repoPath, version: session.pin.version, sha: session.pin.sha, languageSet: session.rung ?? undefined } },
+        source,
+        engine,
+      );
+      onDecided(await loadSession(repoPath, tool, book, source, engine));
+      setTapped(null);
+      setStatus(IDLE);
+    } catch (e) {
+      setStatus({ state: 'failed', message: (e as Error).message });
+    }
+  };
+  const mark = (button: 'valid' | 'invalid') => record(engine.journal.patch(button, targetText, [...chosen]));
+  // Decided as the list counts it (tC4 isDecided); an Invalid status shows as Invalid.
+  const decided = engine.progress([item]).decided === 1 ? (item.status === 'invalid' ? 'invalid' : 'valid') : null;
 
   return (
-    <main className="screen check" data-testid="check-screen" {...swipe}>
+    <main className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe}>
       <TopBar
         title={`${bookName(book)} ${ref.chapter}:${ref.verse}`}
         titleTestId="check-title"
@@ -132,15 +185,21 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         onBack={onBack}
         onTitle={() => setPicking(true)}
       />
-      <ErrorLine text={failure(context)} />
+      <ErrorLine text={failure(context) ?? failure(status)} />
       {ctx && (
         <>
           <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
           {/* The checker's own verse right under the help, so it is in view without scrolling; the sources follow in full. */}
           <section className="pane target" data-testid="target" dir={ctx.dir}>
             <span className="lb">{t('yourTranslation')}</span>
-            <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={target.selected} />}</p>
+            <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={chosen} onToggle={session.journaled ? toggle : undefined} />}</p>
+            {decided && (
+              <p className="decided" data-testid="decided">
+                {t(decided)}
+              </p>
+            )}
           </section>
+          {!session.journaled && <p className="muted">{t('needsJournal')}</p>}
           {ctx.panes.map((pane) => {
             const verse = verseOf(pane.book, item);
             const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
@@ -159,6 +218,16 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         </>
       )}
       <nav className="bottombar">
+        {session.journaled && ctx && (
+          <div className="decide">
+            <button className="invalid" onClick={() => mark('invalid')} disabled={status.state === 'saving'}>
+              {t('invalid')}
+            </button>
+            <button className="valid" onClick={() => mark('valid')} disabled={status.state === 'saving'}>
+              {status.state === 'saving' ? t('saving') : t('valid')}
+            </button>
+          </div>
+        )}
         <button onClick={prev} disabled={index === 0}>
           ‹ {t('previous')}
         </button>

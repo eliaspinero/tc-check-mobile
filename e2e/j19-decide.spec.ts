@@ -1,0 +1,113 @@
+// Issue #9, slice 9a: decide on the phone. A decision goes into the project's journal as tC4 writes
+// one, with the phone as its own actor; the derived decision file follows; the list follows at once;
+// nothing is lost when the app closes right after; a project tC4 never opened offers no decision.
+import { test, expect, type Page, type BrowserContext } from '@playwright/test';
+import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, readIngredient, rigUp } from './helpers/rig';
+import { openProject } from './helpers/session';
+import { DESKTOP_ACTOR, foldOf, journalFiles, placeJournaledProject } from './helpers/journal';
+
+const PROJECT = 'qa.door43.org/checker1/sample_burrito';
+type Decision = { contextId: { checkId: string }; selections: Array<{ text: string; occurrence: number; occurrences: number }> | false; nothingToSelect: boolean; status?: string };
+
+/** Open Titus Words, then the first check of chapter 1 that is not decided yet; returns the book's decided count before. */
+const openUndecided = async (page: Page, context: BrowserContext): Promise<number> => {
+  await openProject(page, context, 'sample_burrito');
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  const before = await progressOf(page);
+  await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
+  await expect(page.getByTestId('check-screen')).toBeVisible();
+  return before;
+};
+
+/** The phone's own decisions: the journal events of every actor but tC4 desktop's. */
+const phoneDecisions = async (): Promise<{ actors: string[]; decisions: Decision[]; refused: string[] }> => {
+  const { events, refused } = await foldOf(PROJECT);
+  const mine = events.filter((e) => e.actor !== DESKTOP_ACTOR) as unknown as Array<{ actor: string; op: string; decision: Decision }>;
+  return { actors: [...new Set(mine.map((e) => e.actor))], decisions: mine.filter((e) => e.op === 'check.decision.set').map((e) => e.decision), refused };
+};
+
+const progressOf = async (page: Page): Promise<number> => Number(((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/)![0]);
+
+test.beforeEach(async () => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await placeJournaledProject(PROJECT);
+});
+
+test('j19: tapped words and Valid write one sealed journal action as the phone, and the derived file and the list follow', async ({ page, context }) => {
+  const before = await openUndecided(page, context);
+  const word = page.getByTestId('target').getByRole('button').first();
+  const text = (await word.textContent()) ?? '';
+  await word.click();
+  await expect(word).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Valid', exact: true }).click();
+  await expect(page.getByTestId('decided')).toHaveText('Valid');
+  await page.screenshot({ path: 'test-results/j19-decided.png' });
+
+  const { actors, decisions, refused } = await phoneDecisions();
+  expect(refused).toEqual([]);
+  expect(actors).toHaveLength(1);
+  expect(actors[0]).toMatch(/^a[0-9a-f]{15}$/);
+  expect(decisions).toHaveLength(1);
+  expect(decisions[0]).toMatchObject({ status: 'valid', nothingToSelect: false });
+  expect(decisions[0].selections).toEqual([{ text, occurrence: expect.any(Number), occurrences: expect.any(Number) }]);
+  expect(Object.keys(await journalFiles(PROJECT))).toContain(`checking/journal/${actors[0]}/actor.json`);
+
+  // The derived file holds the decision as the fold projects it.
+  const file = JSON.parse(await readIngredient(PROJECT, 'checking/translationWords/TIT.json')) as { resource: { sha: string }; decisions: Decision[] };
+  expect(file.decisions.find((d) => d.contextId.checkId === decisions[0].contextId.checkId)).toEqual((await foldOf(PROJECT)).fold.decisions.translationWords.find((d: Decision) => d.contextId.checkId === decisions[0].contextId.checkId));
+  expect(file.resource.sha).toMatch(/^[0-9a-f]{40}$/);
+
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('progress')).toHaveText(new RegExp(`^${before + 1} of`));
+});
+
+test('j19: Valid with no word tapped records nothing to select, and Invalid records invalid', async ({ page, context }) => {
+  await openUndecided(page, context);
+  await page.getByRole('button', { name: 'Valid', exact: true }).click();
+  await expect(page.getByTestId('decided')).toHaveText('Valid');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Invalid' }).click();
+  await expect(page.getByTestId('decided')).toHaveText('Invalid');
+  const { decisions } = await phoneDecisions();
+  expect(decisions.map((d) => ({ selections: d.selections, nothingToSelect: d.nothingToSelect, status: d.status }))).toEqual([
+    { selections: false, nothingToSelect: true, status: 'valid' },
+    { selections: false, nothingToSelect: false, status: 'invalid' },
+  ]);
+});
+
+test('j19: a decision survives closing the app right after it shows, even before its derived file is written', async ({ page, context }) => {
+  await openUndecided(page, context);
+  // The derived file write never lands: the app "closes" between the journal write and it.
+  const derivedWrite = (url: URL) => url.pathname.startsWith('/api/burrito/ingredient/raw/') && url.searchParams.get('ipath') === 'checking/translationWords/TIT.json';
+  await page.route(derivedWrite, (route) => (route.request().method() === 'POST' ? route.abort() : route.continue()));
+  await page.getByRole('button', { name: 'Valid', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  const checkId = (await phoneDecisions()).decisions[0]?.contextId.checkId;
+  expect(checkId).toBeTruthy();
+  await page.unroute(derivedWrite);
+  await page.reload();
+  await openProject(page, context, 'sample_burrito');
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  const file = JSON.parse(await readIngredient(PROJECT, 'checking/translationWords/TIT.json')) as { decisions: Decision[] };
+  expect(file.decisions.some((d) => d.contextId.checkId === checkId)).toBe(false);
+  // The list reads the journal: the check is decided.
+  const [decided] = ((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/g)!.map(Number);
+  const fold = (await foldOf(PROJECT)).fold;
+  expect(decided).toBe(fold.decisions.translationWords.filter((d: Decision) => d.selections !== false || d.nothingToSelect).length);
+});
+
+test('j19: with Door43 unreachable, a decision is still recorded on the phone', async ({ page, context }) => {
+  await openUndecided(page, context);
+  await context.route('https://qa.door43.org/**', (route) => route.abort());
+  await page.getByRole('button', { name: 'Invalid' }).click();
+  await expect(page.getByTestId('decided')).toHaveText('Invalid');
+  expect((await phoneDecisions()).decisions).toHaveLength(1);
+});
+
+test('j19: a project tC4 never opened says so and offers no decision', async ({ page, context }) => {
+  await placeRepo(SAMPLE_PROJECT, PROJECT);
+  await openUndecided(page, context);
+  await expect(page.getByText('Open this project once in translationCore to record decisions here.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Valid', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Invalid' })).toHaveCount(0);
+});

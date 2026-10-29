@@ -14,6 +14,11 @@ export interface ProjectSource {
   /** Pull Door43 main into the local copy (remote `origin`). */
   pull(repoPath: string): Promise<void>;
   readText(repoPath: string, ipath: string): Promise<string>;
+  /** Every file under the repo's ingredients/, as ingredient-relative paths (hidden and .bak files skipped). */
+  listPaths(repoPath: string): Promise<string[]>;
+  /** Write one ingredient file. `register` adds it to metadata.json's ingredients; `bak` keeps the server's .bak copy.
+   * A journal file is neither registered nor backed up; a derived file is both, as tC4 writes them. */
+  writeText(repoPath: string, ipath: string, text: string, opts: { register: boolean; bak: boolean }): Promise<void>;
   readMetadata(repoPath: string): Promise<Record<string, unknown>>;
   /** `ingredients/checking/resources.json`, or null when the repo is not a tC4 project. */
   readResources(repoPath: string): Promise<ResourcesFile | null>;

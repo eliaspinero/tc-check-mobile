@@ -71,6 +71,7 @@ button.chapter .done-mark { position: absolute; top: 2px; right: 6px; font-size:
 
 /* Check screen: collapsible help, panes, bottom bar. */
 .check { padding-bottom: 88px; }
+.check.deciding { padding-bottom: 148px; }
 .help-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; padding: 0; text-align: left; }
 .help-body { margin-top: 6px; line-height: 1.5; }
 .help-body h3, .help-body h4 { font-size: 15px; margin: 10px 0 4px; }
@@ -80,8 +81,13 @@ button.chapter .done-mark { position: absolute; top: 2px; right: 6px; font-size:
 .help-body.clamp p { margin: 0; }
 .chevron { color: var(--muted); }
 .pane.target .lb { color: var(--accent); font-weight: 600; }
-.bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); max-width: 560px; margin: 0 auto; box-sizing: border-box; }
+.bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--bg); border-top: 1px solid var(--line); max-width: 560px; margin: 0 auto; box-sizing: border-box; }
 .bottombar button { flex: 1; }
+/* Valid and Invalid over Previous and Next, in thumb reach (spec §5 item 6). */
+.bottombar .decide { flex-basis: 100%; display: flex; gap: 8px; }
+.bottombar .decide .valid { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.decided { margin: 6px 0 0; font-weight: 600; color: var(--accent); }
+[role='button'][aria-pressed] { cursor: pointer; }
 button:disabled { opacity: 0.45; }
 
 /* The app's name above the first screens' titles; a note's Academy articles as tags. */

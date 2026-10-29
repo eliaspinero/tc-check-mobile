@@ -132,6 +132,7 @@ export default function App() {
           source={source}
           engine={engine}
           onIndex={(index) => setScreen({ ...screen, index })}
+          onDecided={(s) => setScreen({ ...screen, session: s })}
           onBack={() => setScreen({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index })}
         />
       );
