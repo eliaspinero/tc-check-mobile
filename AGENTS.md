@@ -18,8 +18,8 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
   `// Copied from unfoldingWord/translationCore4 <path> at <commit>. Changes: <list or "none">.`
   So does every stylesheet in `client/src/ds/` (tC4's design tokens), with the same line in `/* */`
   (`npm run check:provenance` enforces both). Copied code is updated by hand from that header.
-- Enter, leave and state changes are animated in CSS (and screen changes with the View Transitions
-  API) with tC4's motion tokens (`client/src/ds/tokens/motion.css`): only `transform` and `opacity`,
+- Enter, leave and state changes are animated in CSS, screen changes included (not the View
+  Transitions API: it swallows a tap made while it runs), with tC4's motion tokens (`client/src/ds/tokens/motion.css`): only `transform` and `opacity`,
   no bounce, spring or scale-on-press, and nothing moves under `prefers-reduced-motion: reduce`. Only
   an animation that follows a finger may use a library, and its issue decides that. `e2e/j30-motion.spec.ts` rejects an
   animated property other than `transform`/`opacity`, a typed duration or easing, and an animation library.
