@@ -20,9 +20,12 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
   (`npm run check:provenance` enforces both). Copied code is updated by hand from that header.
 - Enter, leave and state changes are animated in CSS, screen changes included (not the View
   Transitions API: it swallows a tap made while it runs), with tC4's motion tokens (`client/src/ds/tokens/motion.css`): only `transform` and `opacity`,
-  no bounce, spring or scale-on-press, and nothing moves under `prefers-reduced-motion: reduce`. Only
+  no bounce, spring or scale-on-press, and nothing moves under `prefers-reduced-motion: reduce`. A colour
+  change fades through a layer's `opacity`; what leaves the screen leaves as a still copy (`client/src/screens/leave.ts`);
+  a closing element stays drawn with `display` or `content-visibility` and `allow-discrete`. Only
   an animation that follows a finger may use a library, and its issue decides that. `e2e/j30-motion.spec.ts` rejects an
-  animated property other than `transform`/`opacity`, a typed duration or easing, and an animation library.
+  animated property other than `transform`/`opacity` (`display`, `content-visibility` and `overlay` only with
+  `allow-discrete`), a typed duration or easing, and an animation library.
 - A decision is written only through the project's journal, as tC4 writes it
   (`client/src/session/journal.ts`): the sealed segment first, then the derived file. Nothing else
   writes to a project.

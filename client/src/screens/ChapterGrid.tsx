@@ -4,6 +4,8 @@ import { t } from '../i18n';
 export type ChapterState = 'none' | 'open' | 'done';
 
 type Props = {
+  /** Closed, the grid stays in the page, hidden, so app.css can fade it out as it closes. */
+  open: boolean;
   /** One entry per chapter of the book, chapter 1 first. */
   chapters: ChapterState[];
   current: number;
@@ -12,18 +14,20 @@ type Props = {
 };
 
 /** The book's chapters as a grid, as YouVersion shows them: greyed with no checks, ✓ when all are checked. */
-export default function ChapterGrid({ chapters, current, onPick, onClose }: Props) {
+export default function ChapterGrid({ open, chapters, current, onPick, onClose }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
 
   // Focus goes to the current chapter while the grid is open, and back where it was (the title) however it closes.
   useEffect(() => {
+    if (!open) return;
     const opener = document.activeElement as HTMLElement | null;
     const buttons = sheet.current?.querySelectorAll<HTMLButtonElement>('button:enabled');
     (sheet.current?.querySelector<HTMLButtonElement>('[aria-current="true"]:enabled') ?? buttons?.[0])?.focus();
     return () => opener?.focus();
-  }, []);
+  }, [open]);
 
   useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
       if (e.key !== 'Tab' || !sheet.current) return;
@@ -42,11 +46,11 @@ export default function ChapterGrid({ chapters, current, onPick, onClose }: Prop
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [open, onClose]);
 
   return (
     // A swipe on the grid must not move the check screen behind it to another check.
-    <div className="sheet-backdrop" onClick={onClose} onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
+    <div className="sheet-backdrop" hidden={!open} aria-hidden={!open || undefined} onClick={onClose} onPointerDown={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()}>
       <div ref={sheet} className="sheet" role="dialog" aria-modal="true" aria-labelledby="chapters-title" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
           <h2 id="chapters-title">{t('chapters')}</h2>

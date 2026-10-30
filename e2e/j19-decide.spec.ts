@@ -90,6 +90,13 @@ test('j19: Valid with no word tapped records nothing to select, and Invalid reco
 });
 
 const backgroundOf = (el: Locator) => el.evaluate((e) => getComputedStyle(e).backgroundColor);
+/** The colour a decide button shows: its fill layer once that layer is in (#42 fades it in through opacity), else
+ * its own background. */
+const fillOf = (el: Locator) =>
+  el.evaluate((e) => {
+    const layer = getComputedStyle(e, '::before');
+    return layer.opacity === '1' ? layer.backgroundColor : getComputedStyle(e).backgroundColor;
+  });
 const tokenBackground = (page: Page, token: string) =>
   page.evaluate((t) => {
     const probe = document.createElement('span');
@@ -112,25 +119,25 @@ test('j19: on the Ocean sheet, the chosen decision fills and one large Next says
   const nexts = page.getByRole('button', { name: /^Next/ });
   await expect.poll(() => backgroundOf(bar)).toBe(await tokenBackground(page, '--uw-ocean'));
   const rest = await tokenBackground(page, '--fill-on-ocean');
-  await expect.poll(() => backgroundOf(valid)).toBe(rest);
-  await expect.poll(() => backgroundOf(invalid)).toBe(rest);
+  await expect.poll(() => fillOf(valid)).toBe(rest);
+  await expect.poll(() => fillOf(invalid)).toBe(rest);
   await expect(valid).toHaveAttribute('aria-pressed', 'false');
   await expect(nexts).toHaveCount(1);
   await expect(nexts).toHaveText(/^Next ›$/);
-  // The fills fade in over tC4's --dur-hover, so a colour is read once it settles.
+  // The fills fade in over tC4's --dur-panel, so a colour is read once it settles.
   await valid.click();
   await expect(page.getByTestId('decided')).toHaveText('Valid');
   await expect(valid).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => backgroundOf(valid)).toBe(await tokenBackground(page, '--tc-valid-strong'));
-  await expect.poll(() => backgroundOf(invalid)).toBe(rest);
+  await expect.poll(() => fillOf(valid)).toBe(await tokenBackground(page, '--tc-valid-strong'));
+  await expect.poll(() => fillOf(invalid)).toBe(rest);
   await expect(nexts).toHaveCount(1);
   await expect(nexts).toHaveText(/^Next\s*(\d+:\d+ )?›$/);
   await invalid.click();
   await expect(page.getByTestId('decided')).toHaveText('Invalid');
   await expect(invalid).toHaveAttribute('aria-pressed', 'true');
   await expect(valid).toHaveAttribute('aria-pressed', 'false');
-  await expect.poll(() => backgroundOf(invalid)).toBe(await tokenBackground(page, '--tc-invalid'));
-  await expect.poll(() => backgroundOf(valid)).toBe(rest);
+  await expect.poll(() => fillOf(invalid)).toBe(await tokenBackground(page, '--tc-invalid'));
+  await expect.poll(() => fillOf(valid)).toBe(rest);
 });
 
 test('j19: a decision survives closing the app right after it shows, even before its derived file is written', async ({ page, context }) => {

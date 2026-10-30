@@ -34,13 +34,16 @@ test('j30: only transform and opacity animate, timed by tC4 motion tokens, with 
       for (const [, prop] of body.matchAll(/([\w-]+)\s*:/g)) if (!['transform', 'opacity'].includes(prop)) offences.push(`${name}: @keyframes ${kf} animates ${prop}`);
     for (const [, value] of text.matchAll(/transition(?:-property)?\s*:\s*([^;}]+)/g))
       for (const part of value.split(','))
-        if (!/^\s*(transform|opacity|none)\b/.test(part)) offences.push(`${name}: transition ${part.trim()}`);
+        // display, content-visibility and overlay do not move: with allow-discrete they only keep a closing element
+        // drawn until its fade ends (#42).
+        if (!/^\s*(transform|opacity|none)\b/.test(part) && !/^\s*(display|content-visibility|overlay)\b.*\ballow-discrete\b/.test(part))
+          offences.push(`${name}: transition ${part.trim()}`);
     for (const [decl, value] of text.matchAll(/(?:animation|transition)(?:-[\w-]+)?\s*:\s*([^;}]+)/g)) {
       const literal = value.replace(/var\(--[\w-]+(?:\s*,[^)]*)?\)/g, '');
       if (/\d*\.?\d+m?s\b|cubic-bezier|steps\(|\b(?:ease|ease-in|ease-out|ease-in-out|linear)\b/.test(literal)) offences.push(`${name}: ${decl.trim()}`);
     }
   }
-  expect(offences, 'Animate only transform and opacity, with var(--dur-*), var(--ease-standard) and var(--stagger) from client/src/ds/tokens/motion.css').toEqual([]);
+  expect(offences, 'Animate only transform and opacity (display, content-visibility and overlay only with allow-discrete), with var(--dur-*), var(--ease-standard) and var(--stagger) from client/src/ds/tokens/motion.css').toEqual([]);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as Record<string, Record<string, string>>;
   const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
   const libraries = ['framer-motion', 'motion', 'react-spring', '@react-spring/web', 'gsap', 'animejs', 'react-transition-group', '@formkit/auto-animate', 'popmotion'];
