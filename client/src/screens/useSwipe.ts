@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { leaveCheck } from './leave';
 
 /** Where a check slides in from: where its peek waits (app.css .peek), past the end or the start. */
 const EDGE = { next: 'calc(100% + var(--peek-gap))', prev: 'calc(-100% - var(--peek-gap))' };
@@ -11,9 +12,11 @@ const EDGE = { next: 'calc(100% + var(--peek-gap))', prev: 'calc(-100% - var(--p
  * back to its place. The hook writes only the custom property `--drag` on `content`, straight to the DOM
  * (a React render on every pointer move would redraw every pane); app.css turns it into a transform, and
  * only when the phone allows motion. The check changes on release, not after the slide, so a tap or a
- * second swipe made while it slides acts on the check already shown. */
+ * second swipe made while it slides acts on the check already shown. The old check leaves whole, as a still copy in
+ * `slot` where its neighbour's peek waits (leave.ts), so it moves on from where the finger left it. */
 export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
   const content = useRef<HTMLDivElement>(null);
+  const slot = useRef<HTMLDivElement>(null);
   // `from` is where the content was when the finger came down: a slide still running carries on from there.
   const start = useRef<{ x: number; y: number; from: number } | null>(null);
 
@@ -31,17 +34,20 @@ export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
   };
   const next = () => {
     if (!onNext) return;
+    leaveCheck(content.current!, slot.current!, 'prev');
     onNext();
     slideIn(EDGE.next);
   };
   const prev = () => {
     if (!onPrev) return;
+    leaveCheck(content.current!, slot.current!, 'next');
     onPrev();
     slideIn(EDGE.prev);
   };
 
   return {
     content,
+    slot,
     next,
     prev,
     area: {
@@ -66,6 +72,7 @@ export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
         const dx = e.clientX - s.x;
         const go = Math.abs(dx) >= 60 && Math.abs(dx) > Math.abs(e.clientY - s.y) ? (dx < 0 ? onNext : onPrev) : undefined;
         if (!go) return place(null, true);
+        leaveCheck(content.current!, slot.current!, dx < 0 ? 'prev' : 'next');
         go();
         slideIn(dx < 0 ? EDGE.next : EDGE.prev, s.from + dx);
       },

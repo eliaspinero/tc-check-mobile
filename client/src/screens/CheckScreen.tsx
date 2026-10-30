@@ -206,6 +206,8 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       <ErrorLine text={failure(context) ?? failure(status)} />
       {/* The check's content: it follows a swipe, with the checks before and after it at its edges. */}
       <div className="slide" ref={swipe.content}>
+        {/* The check that just left, whole, while this one slides in (useSwipe, leave.ts). Filled outside React. */}
+        <div className="leaving-slot" ref={swipe.slot} />
         {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
         {ctx && (
           <>
@@ -282,18 +284,17 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           </button>
         )}
       </nav>
-      {picking && (
-        <ChapterGrid
-          chapters={chapterStates(book, session.items, engine)}
-          current={ref.chapter}
-          onPick={(chapter) => {
-            setPicking(false);
-            const first = session.items.findIndex((i) => refOf(i).chapter === chapter);
-            if (first >= 0) onIndex(first);
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
+      <ChapterGrid
+        open={picking}
+        chapters={chapterStates(book, session.items, engine)}
+        current={ref.chapter}
+        onPick={(chapter) => {
+          setPicking(false);
+          const first = session.items.findIndex((i) => refOf(i).chapter === chapter);
+          if (first >= 0) onIndex(first);
+        }}
+        onClose={() => setPicking(false)}
+      />
     </main>
   );
 }

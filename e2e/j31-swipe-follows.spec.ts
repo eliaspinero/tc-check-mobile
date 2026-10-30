@@ -180,14 +180,14 @@ test.describe('with motion', () => {
   test('j31: the check left behind shows its verse and words as it slides out', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await open(page, context);
-    const title = (await page.getByTestId('check-title').textContent())!;
+    const title = (await page.getByTestId('help-title').textContent())!;
     await swipe(page, 0.8, 0.3);
     await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
-    // While the new check slides in, the old one is the previous peek, and its title is on screen.
-    const left = page.getByTestId('peek-prev').locator('.help-title');
+    // While the new check slides in, the old one leaves whole (#42), and its title is on screen.
+    const left = page.locator('.leaving-slot.prev .help-title');
     await expect(left).toHaveText(title);
-    // The text itself, not its box: the end of the title is on screen.
-    const textEnd = await left.evaluate((el) => {
+    // The text itself, not its box: the end of its words is on screen.
+    const textEnd = await page.locator('.leaving-slot.prev .pane').first().evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
       return range.getBoundingClientRect().right;
