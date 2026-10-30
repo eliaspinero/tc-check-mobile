@@ -28,16 +28,20 @@ const hold = (into: HTMLElement, nodes: Node[], end: Element, type: 'animationen
   end.addEventListener(type, ended);
 };
 
-/** The screen `main` leaves, under the new one: a layer over the page, scrolled as the page was, so its top bar stays
- * where it was. A second screen change while it leaves replaces it. */
+/** The screen `main` leaves, under the new one: a layer over the page that moves, and inside it a view scrolled as
+ * the page was, so its top bar stays where it was. The check screen's fixed bottom bar is placed by the moving layer,
+ * not by the scrolled view, so it stays at the bottom. A second screen change while it leaves replaces it. */
 export const leaveScreen = (main: Element, back: boolean) => {
   document.querySelector('body > .leaving')?.remove();
   if (!motionAllowed()) return;
   const layer = document.createElement('div');
   layer.className = back ? 'leaving back' : 'leaving';
+  const view = document.createElement('div');
+  view.className = 'leaving-view';
   document.body.append(layer);
-  hold(layer, [stillCopy(main)], layer, 'animationend', () => layer.remove());
-  layer.scrollTop = scrollY;
+  hold(layer, [view], layer, 'animationend', () => layer.remove());
+  view.append(stillCopy(main));
+  view.scrollTop = scrollY;
 };
 
 /** The check in `content` leaves whole, into `slot` on its `side`, while `content` slides to the new check. The peeks

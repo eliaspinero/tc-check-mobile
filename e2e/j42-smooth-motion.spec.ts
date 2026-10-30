@@ -102,9 +102,21 @@ test.describe('with motion', () => {
     await page.locator('[data-testid="verse"][open] [data-testid="check-row"]').last().click();
     await pause(page);
     // The copy is scrolled as the list was when the row was tapped.
-    expect(await leaving(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
+    expect(await leaving(page).locator('.leaving-view').evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
     const bar = (await leaving(page).locator('header.topbar').boundingBox())!;
     expect(Math.round(bar.y)).toBe(0);
+  });
+
+  test('j42: the leaving copy of a scrolled check keeps its Ocean bar at the bottom', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await openCheck(page, context);
+    await page.mouse.wheel(0, 400);
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(100);
+    await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
+    await pause(page);
+    const bar = (await leaving(page).locator('nav.bottombar').boundingBox())!;
+    expect(Math.round(bar.y + bar.height)).toBe(page.viewportSize()!.height);
+    expect(Math.round((await leaving(page).locator('header.topbar').boundingBox())!.y)).toBe(0);
   });
 
   test('j42: a tap while the old screen leaves reaches the new screen', async ({ page, context }) => {

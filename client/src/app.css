@@ -182,8 +182,9 @@ button:disabled { opacity: 0.45; }
 @keyframes exit-to-end { to { opacity: 0; transform: translateX(var(--space-10)); } }
 /* The screen on view is drawn over the one leaving (leave.ts), so it takes every tap. */
 #root > main { position: relative; z-index: 1; }
-/* The screen leaving, as the page showed it: a layer over the page, scrolled as the page was. */
+/* The screen leaving, as the page showed it: a layer over the page that moves, holding a view scrolled as the page was. */
 .leaving { position: fixed; inset: 0; overflow: hidden; pointer-events: none; user-select: none; }
+.leaving-view { position: absolute; inset: 0; overflow: hidden; }
 /* The copy is still: its rows and panels do not come in again as it goes. */
 .leaving * { animation: none !important; }
 @media (prefers-reduced-motion: no-preference) {
