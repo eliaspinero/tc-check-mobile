@@ -265,10 +265,10 @@ test.describe('with motion', () => {
     const body = page.getByTestId('help-body');
     await expect(body).toBeVisible();
     expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['fade', 0]]);
-    await page.locator('.help-toggle').click();
+    await page.getByTestId('help').locator('.help-toggle').click();
     expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['rise', 0]]);
     expect(await body.evaluate((el) => el.getAnimations().length)).toBe(1);
-    await page.locator('.help-toggle').click();
+    await page.getByTestId('help').locator('.help-toggle').click();
     expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['fade', 0]]);
     expect(await body.evaluate((el) => el.getAnimations().length)).toBe(1);
   });
@@ -297,7 +297,7 @@ test('j30: with reduced motion nothing moves, and no screen slides in', async ({
   expect(await still(page)).toEqual({ animations: 0, moving: [] });
   await page.keyboard.press('Escape');
   await page.getByTestId('check-row').first().click();
-  await page.locator('.help-toggle').click();
+  await page.getByTestId('help').locator('.help-toggle').click();
   await expect(page.getByTestId('help-body')).toBeVisible();
   expect(await still(page)).toEqual({ animations: 0, moving: [] });
   await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();

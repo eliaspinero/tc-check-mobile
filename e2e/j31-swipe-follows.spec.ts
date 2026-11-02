@@ -73,7 +73,7 @@ test.describe('with motion', () => {
     await f.lift();
     await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
     // The check that showed at the edge is the one now open, and it settles in its place.
-    expect(shown).toContain(await page.getByTestId('check-title').textContent());
+    expect(shown).toContain(await page.getByTestId('help-title').textContent());
     await expect.poll(() => helpX(page)).toBe(rest);
   });
 
@@ -101,6 +101,8 @@ test.describe('with motion', () => {
     const rest = await helpX(page);
     await f.press(0.6, 0.5);
     expect(await helpX(page)).toBeLessThan(rest - 20);
+    // Held still before the release: a quick short move is a flick, and goes on.
+    await page.waitForTimeout(200);
     await f.lift();
     expect(await sliding(page)).toBe(true);
     await expect.poll(() => helpX(page)).toBe(rest);
@@ -138,11 +140,56 @@ test.describe('with motion', () => {
     await expect(at(page)).toHaveText(header);
   });
 
+  test('j31: the neighbour shows whole while dragging, out of reach, as it will show once it lands', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const f = await finger(page);
+    await f.press(0.8, 0.5);
+    const peek = page.getByTestId('peek-next');
+    expect(await peek.locator('.pane').count()).toBeGreaterThan(1);
+    expect(await peek.evaluate((el) => [(el as HTMLElement).inert, el.getAttribute('aria-hidden')])).toEqual([true, 'true']);
+    expect(await peek.locator('[data-testid]').count()).toBe(0);
+    const shown = await peek.locator('.pane, .help').allTextContents();
+    await f.lift();
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+    expect(await page.locator('.slide > .pane, .slide > .help').allTextContents()).toEqual(shown);
+  });
+
+  test('j31: a short quick flick goes to the next check, and a short slow move does not', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const f = await finger(page);
+    await f.press(0.6, 0.5);
+    await page.waitForTimeout(200);
+    await f.lift();
+    await expect.poll(() => sliding(page)).toBe(false);
+    await expect(at(page)).toHaveText(/ 1 \/ \d+$/);
+    await f.press(0.6, 0.5);
+    await f.lift();
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+  });
+
+  test('j31: a drag that began sideways keeps following the finger when it drifts down', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const rest = await helpX(page);
+    const cdp = await context.newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove', x: number, y: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: [{ x, y }] });
+    await touch('touchStart', 300, 300);
+    await touch('touchMove', 280, 302);
+    await touch('touchMove', 260, 304);
+    // Now more down than across, and still further across: the check follows.
+    await touch('touchMove', 240, 420);
+    await expect.poll(() => helpX(page)).toBe(rest - 60);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+  });
+
   test('j31: a vertical move scrolls and does not drag the check', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await open(page, context);
     // The help open makes the screen taller than the phone.
-    await page.locator('.help-toggle').click();
+    await page.getByTestId('help').locator('.help-toggle').click();
     const rest = await helpX(page);
     const f = await finger(page);
     await f.press(0.5, 0.45, -250);

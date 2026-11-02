@@ -4,7 +4,13 @@ import { leaveCheck } from './leave';
 /** Where a check slides in from: where its peek waits (app.css .peek), past the end or the start. */
 const EDGE = { next: 'calc(100% + var(--peek-gap))', prev: 'calc(-100% - var(--peek-gap))' };
 
-/** Horizontal swipe: a pointer move of at least 60 px that is more horizontal than vertical.
+/** The px a pointer moves before the gesture counts as sideways or as a scroll. */
+const AXIS_AFTER = 6;
+/** A flick: a whole gesture of at least this far (px) in under this long (ms). */
+const FLICK_FROM = 30;
+const FLICK_WITHIN = 200;
+
+/** Horizontal swipe: a pointer move that starts sideways and goes at least 60 px, or a quick flick (a finger or a pen).
  * Left is next, right is previous. Vertical moves stay scrolls. `onNext` or `onPrev` is missing at the
  * last or the first check.
  *
@@ -18,7 +24,8 @@ export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
   const content = useRef<HTMLDivElement>(null);
   const slot = useRef<HTMLDivElement>(null);
   // `from` is where the content was when the finger came down: a slide still running carries on from there.
-  const start = useRef<{ x: number; y: number; from: number } | null>(null);
+  // `axis` is decided by the first move and holds for the whole gesture, so a finger that drifts does not stop the drag.
+  const start = useRef<{ x: number; y: number; t: number; from: number; axis: 'x' | 'y' | null } | null>(null);
 
   const place = (to: string | null, animated: boolean) => {
     const el = content.current!;
@@ -53,14 +60,16 @@ export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
     area: {
       onPointerDown: (e: React.PointerEvent) => {
         const from = new DOMMatrixReadOnly(getComputedStyle(content.current!).transform).m41;
-        start.current = { x: e.clientX, y: e.clientY, from };
+        start.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, from, axis: null };
       },
       onPointerMove: (e: React.PointerEvent) => {
         const s = start.current;
-        // A mouse drag selects text, as before; only a finger or a pen moves the check.
-        if (!s || e.pointerType === 'mouse') return;
+        if (!s) return;
         const dx = e.clientX - s.x;
-        if (Math.abs(dx) <= Math.abs(e.clientY - s.y)) return;
+        const dy = e.clientY - s.y;
+        if (!s.axis && Math.max(Math.abs(dx), Math.abs(dy)) >= AXIS_AFTER) s.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        // A mouse drag selects text, as before; only a finger or a pen moves the check.
+        if (s.axis !== 'x' || e.pointerType === 'mouse') return;
         // With no check on that side, the content moves a quarter of the way: a hint that it ends here.
         const side = dx < 0 ? onNext : onPrev;
         place(`${s.from + (side ? dx : dx / 4)}px`, false);
@@ -70,7 +79,9 @@ export const useSwipe = (onNext?: () => void, onPrev?: () => void) => {
         start.current = null;
         if (!s) return;
         const dx = e.clientX - s.x;
-        const go = Math.abs(dx) >= 60 && Math.abs(dx) > Math.abs(e.clientY - s.y) ? (dx < 0 ? onNext : onPrev) : undefined;
+        // A mouse drag of that length is a text selection, so a flick is a finger's or a pen's.
+        const flick = e.pointerType !== 'mouse' && Math.abs(dx) >= FLICK_FROM && e.timeStamp - s.t < FLICK_WITHIN;
+        const go = s.axis === 'x' && (Math.abs(dx) >= 60 || flick) ? (dx < 0 ? onNext : onPrev) : undefined;
         if (!go) return place(null, true);
         leaveCheck(content.current!, slot.current!, dx < 0 ? 'prev' : 'next');
         go();

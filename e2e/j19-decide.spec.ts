@@ -206,7 +206,7 @@ test('j19: a word toggled with the keyboard keeps the focus', async ({ page, con
 test('j19: a project tC4 never opened says so and offers no decision', async ({ page, context }) => {
   await placeRepo(SAMPLE_PROJECT, PROJECT);
   await openUndecided(page, context);
-  await expect(page.getByText('Open this project once in translationCore to record decisions here.')).toBeVisible();
+  await expect(page.locator('.slide > .muted', { hasText: 'Open this project once in translationCore to record decisions here.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Valid', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Invalid' })).toHaveCount(0);
 });
