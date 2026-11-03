@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
@@ -71,7 +71,7 @@ function TargetVerse({ text, words, selected, onToggle }: { text: string; words:
 type Article = { title: string; blocks: ArticleBlock[] };
 const articleKey = (item: CheckItem) => `${(item.category as string | undefined) ?? 'kt'}/${item.contextId.groupId}`;
 
-/** The help above the sources: the tW article or the tN note, closed to its title and first block. */
+/** The help above the sources: the tW article or the tN note, closed to its title, with a note's Academy articles small under it. */
 function Help({ item, tool, ctx, article, open, onToggle, engine, still }: { item: CheckItem; tool: Tool; ctx: CheckContext; article?: Article; open: boolean; onToggle: () => void; engine: CheckingEngine; still: boolean }) {
   const c = item.contextId as { groupId: string; occurrenceNote?: string };
   const id = (name: string) => (still ? undefined : name);
@@ -80,25 +80,28 @@ function Help({ item, tool, ctx, article, open, onToggle, engine, still }: { ite
   const note = tool === 'translationNotes' ? noteWithoutAcademyLinks(c.occurrenceNote ?? '', c.groupId) : null;
   const title = note ? gatewayOf(engine, ctx.panes, item) : (article?.title ?? c.groupId);
   const blocks = note ? engine.noteBlocks(note.text) : (article?.blocks ?? []);
-  // Closed, the help shows its first block; a heading first shows the paragraph under it.
-  const preview = blocks.find((b) => b.kind !== 'h');
 
   return (
     <section className="help" data-testid={id('help')}>
       <button className="help-toggle" aria-expanded={open} onClick={onToggle}>
         <span data-testid={id('help-title')} className="help-title">{title}</span>
-        <span className="chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
+        <span className="chevron" aria-hidden="true">▾</span>
       </button>
       {note && (
         <p data-testid={id('help-refs')} className="tags">
           {note.refs.join(' · ')}
         </p>
       )}
-      {blocks.length > 0 && (
-        <div data-testid={id('help-body')} className={open ? 'help-body' : 'help-body clamp'}>
-          <Markdown blocks={open ? blocks : preview ? [preview] : []} />
+      {/* Always drawn, so opening can grow from nothing; closed, it is out of reach. */}
+      <div className="help-more" data-open={open || undefined} {...(!open && { inert: '' })}>
+        <div>
+          {blocks.length > 0 && (
+            <div data-testid={id('help-body')} className="help-body">
+              <Markdown blocks={blocks} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }
@@ -128,19 +131,6 @@ function CheckBody({ item, tool, ctx, article, helpOpen, onHelp, journaled, engi
   return (
     <>
       <Help item={item} tool={tool} ctx={ctx} article={article} open={helpOpen} onToggle={onHelp} engine={engine} still={still} />
-      {/* The checker's own verse right under the help, so it is in view without scrolling; the sources follow in full. */}
-      <section className="pane target" data-testid={id('target')} dir={ctx.dir}>
-        <span className="lb">{t('yourTranslation')}</span>
-        <p>
-          <TargetVerse text={targetText} words={target.tokens} selected={chosen ?? new Set(target.selected)} onToggle={journaled ? onToggle : undefined} />
-        </p>
-        {decided && (
-          <p className="decided" data-testid={id('decided')} data-status={decided}>
-            {t(decided)}
-          </p>
-        )}
-      </section>
-      {!journaled && <p className="muted">{t('needsJournal')}</p>}
       {ctx.panes.map((pane) => {
         const verse = verseOf(pane.book, item);
         const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
@@ -156,6 +146,20 @@ function CheckBody({ item, tool, ctx, article, helpOpen, onHelp, journaled, engi
           </section>
         );
       })}
+      {!journaled && <p className="muted">{t('needsJournal')}</p>}
+      {/* The checker's own verse last and anchored right above the decide bar (app.css): the help and the sources scroll
+          behind it, so it is never lost and the work stays within thumb reach. */}
+      <section className="pane target" data-testid={id('target')} dir={ctx.dir}>
+        <span className="lb">{t('yourTranslation')}</span>
+        <p>
+          <TargetVerse text={targetText} words={target.tokens} selected={chosen ?? new Set(target.selected)} onToggle={journaled ? onToggle : undefined} />
+        </p>
+        {decided && (
+          <p className="decided" data-testid={id('decided')} data-status={decided}>
+            {t(decided)}
+          </p>
+        )}
+      </section>
     </>
   );
 }
@@ -234,8 +238,17 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const afterRef = after && (after.chapter !== ref.chapter || after.verse !== ref.verse) ? `${after.chapter}:${after.verse}` : null;
   const bigNext = decided !== null || !session.journaled;
 
+  // The bar's height changes with the decision and the phone's text size; the anchored verse sits on top of it (--bar in app.css).
+  const screen = useRef<HTMLElement>(null);
+  const bar = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const seen = new ResizeObserver(() => screen.current!.style.setProperty('--bar', `${bar.current!.offsetHeight}px`));
+    seen.observe(bar.current!);
+    return () => seen.disconnect();
+  }, []);
+
   return (
-    <main className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe.area}>
+    <main ref={screen} className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe.area}>
       <TopBar
         title={`${bookName(book)} ${ref.chapter}:${ref.verse}`}
         titleTestId="check-title"
@@ -272,7 +285,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       </div>
       {/* tC4's Ocean sheet (owner's design B3·1). Deciding comes first; once decided, or where the project takes
           no decisions, one large Next says which verse it goes to. There is only ever one Next. */}
-      <nav className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
+      <nav ref={bar} className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
         <div className="progress" aria-hidden="true">
           <span style={{ transform: `scaleX(${(index + 1) / total})` }} />
         </div>

@@ -15,15 +15,23 @@ button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspi
 .muted { color: var(--text-tertiary); font-size: var(--fs-ui-sm); }
 .check { touch-action: pan-y; user-select: text; }
 .check-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
-.help { background: var(--surface-muted); border-radius: var(--radius-lg); padding: var(--space-5) var(--space-6); }
+.help { background: var(--surface-muted); border-radius: var(--radius-lg); padding: 0 var(--space-6) var(--space-3); }
+/* Grid rows go from 0fr to 1fr, the one way to grow to the height of the content, so opening pushes the sources down smoothly. */
+.help-more { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; }
+.help-more > div { min-height: 0; overflow: hidden; }
+.help-more[data-open] { grid-template-rows: 1fr; opacity: 1; visibility: visible; }
 .help-title { font-weight: var(--fw-black); font-size: var(--fs-title); color: var(--text-heading); letter-spacing: var(--track-17); margin: 0 0 var(--space-1); }
 .help p { margin: 0; }
-.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .pre { white-space: pre-line; }
 .pane { padding: 0 2px; }
 .pane p { margin: var(--space-1) 0 0; font-family: var(--font-scripture); font-size: var(--fs-verse-sm); line-height: var(--lh-verse-sm); color: var(--text-scripture); }
-.pane.target { border-left: var(--stroke-control) solid var(--accent); padding: 2px 0 2px var(--space-5); }
+/* Anchored right above the bottom bar (--bar, CheckScreen): at the screen's end when the check is short, and the help and
+   the sources scroll behind it when it is long. A very long verse scrolls inside, so the sources keep their share of the screen. */
+.pane.target { position: sticky; bottom: var(--bar); z-index: 1; margin-top: auto; border-left: var(--stroke-control) solid var(--accent); padding: 2px 0 var(--space-5) var(--space-5); }
+/* Its background runs edge to edge and under the bar's rounded corners. */
+.pane.target::before { content: ''; position: absolute; z-index: -1; inset: calc(-1 * var(--space-3)) calc(-1 * var(--space-7)) calc(-1 * var(--radius-2xl)); background: var(--surface-app); border-top: var(--stroke-hair) solid var(--border); }
 .pane.target p { font-size: var(--fs-verse-md); line-height: var(--lh-verse-md); }
+.pane.target p:first-of-type { max-height: 30dvh; overflow-y: auto; overscroll-behavior: contain; }
 .lb { font-size: var(--fs-caption); font-weight: var(--fw-heavy); color: var(--text-tertiary); }
 mark.hl { background: var(--tc-highlight-soft); color: inherit; border-radius: var(--radius-xs); padding: 0 1px; }
 .sel { background: var(--surface-accent-soft); color: var(--text-accent); border-radius: var(--radius-xs); padding: 0 1px; }
@@ -80,26 +88,27 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 /* The check's content, laid out as the screen lays it out; it moves on a swipe (useSwipe.ts) and the checks before and
    after it wait just past the screen's sides. overflow-x: clip hides them without making the screen scroll sideways
    (clip, unlike hidden, keeps the top bar sticky). */
-.slide { --peek-gap: var(--space-7); position: relative; display: flex; flex-direction: column; gap: var(--space-5); }
-.peek { position: absolute; top: 0; bottom: 0; width: 100%; user-select: none; overflow: hidden; display: flex; flex-direction: column; gap: var(--space-5); }
+.slide { --peek-gap: var(--space-7); position: relative; flex: 1; display: flex; flex-direction: column; gap: var(--space-5); }
+/* overflow: clip, as hidden would hold the anchored verse inside this box instead of above the bottom bar. */
+.peek { position: absolute; top: 0; bottom: 0; width: 100%; user-select: none; overflow: clip; display: flex; flex-direction: column; gap: var(--space-5); }
 .peek.next { left: calc(100% + var(--peek-gap)); }
 .peek.prev { right: calc(100% + var(--peek-gap)); }
 /* The check that just left (leave.ts), whole, where the peek on its side waits; the peek gives it the place. */
-.leaving-slot { position: absolute; top: 0; bottom: 0; width: 100%; overflow: hidden; display: flex; flex-direction: column; gap: var(--space-5); pointer-events: none; }
+.leaving-slot { position: absolute; top: 0; bottom: 0; width: 100%; overflow: clip; display: flex; flex-direction: column; gap: var(--space-5); pointer-events: none; }
 .leaving-slot:empty { display: none; }
 .leaving-slot.prev { right: calc(100% + var(--peek-gap)); }
 .leaving-slot.next { left: calc(100% + var(--peek-gap)); }
 .slide:has(> .leaving-slot.prev:not(:empty)) > .peek.prev,
 .slide:has(> .leaving-slot.next:not(:empty)) > .peek.next { visibility: hidden; }
-.check.deciding { padding-bottom: 224px; }
+.check { min-height: 100dvh; box-sizing: border-box; padding-bottom: var(--bar); }
 .help-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; border-radius: 0; background: transparent; padding: 0; text-align: left; font-weight: var(--fw-regular); }
 .help-body { margin-top: var(--space-2); line-height: var(--lh-body); }
 .help-body h3, .help-body h4 { font-size: var(--fs-body); font-weight: var(--fw-black); color: var(--text-heading); margin: var(--space-4) 0 var(--space-1); }
 .help-body p { margin: 0 0 var(--space-2); }
 .help-body ul { margin: 0 0 var(--space-2); padding-left: var(--space-8); }
 .help-body blockquote { margin: 0 0 var(--space-2); padding-left: var(--space-4); border-left: var(--stroke-control) solid var(--border-strong); }
-.help-body.clamp p { margin: 0; }
 .chevron { color: var(--text-tertiary); }
+.help-toggle[aria-expanded='true'] .chevron { transform: rotate(180deg); }
 .pane.target .lb { color: var(--text-accent); }
 .bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5) var(--space-7) calc(var(--space-7) + env(safe-area-inset-bottom)); background: var(--uw-ocean); color: var(--text-inverse); border-radius: var(--radius-2xl) var(--radius-2xl) 0 0; border-top: 3px solid transparent; box-shadow: var(--shadow-sheet); max-width: 560px; margin: 0 auto; box-sizing: border-box; }
 /* The sheet's top edge takes the colour of the check's decision: one layer per colour over the edge, shown by its
@@ -189,9 +198,11 @@ button:disabled { opacity: 0.45; }
   .bone { animation: pulse calc(6 * var(--dur-panel)) var(--ease-standard) infinite; }
   .sheet-backdrop { animation: fade var(--dur-panel) var(--ease-standard); }
   .sheet { animation: sheet-up var(--dur-panel) var(--ease-standard); }
-  /* The help's text fades in closed and rises in open: changing the animation's name runs it on each toggle. */
-  .help-body { animation: fade var(--dur-enter) var(--ease-standard); }
-  .help-body:not(.clamp) { animation-name: rise; }
+  /* The help opens and closes in one move: its height, its text's fade and the chevron's turn together. */
+  .help-more { transition: grid-template-rows var(--dur-panel) var(--ease-standard), opacity var(--dur-panel) var(--ease-standard), visibility var(--dur-panel) var(--ease-standard) allow-discrete; }
+  .chevron { display: inline-block; transition: transform var(--dur-panel) var(--ease-standard); }
+  /* The checks waiting off screen do not grow with it: three layouts at once would cost frames for nothing seen. */
+  .peek .help-more { transition: none; }
   .bottombar .progress span { transition: transform var(--dur-panel) var(--ease-standard); }
   .bottombar .decide button { transition: opacity var(--dur-hover) var(--ease-standard); }
   .bottombar .decide button::before, .bottombar::before, .bottombar::after { transition: opacity var(--dur-panel) var(--ease-standard); }

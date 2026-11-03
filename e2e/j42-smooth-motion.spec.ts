@@ -110,8 +110,10 @@ test.describe('with motion', () => {
   test('j42: the leaving copy of a scrolled check keeps its Ocean bar at the bottom', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openCheck(page, context);
+    // Open, the help makes the check taller than the screen.
+    await page.getByTestId('help').locator('.help-toggle').click();
     await page.mouse.wheel(0, 400);
-    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(100);
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(50);
     await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
     await pause(page);
     const bar = (await leaving(page).locator('nav.bottombar').boundingBox())!;
@@ -135,14 +137,15 @@ test.describe('with motion', () => {
     await swipe(page, 0.8, 0.3);
     await expect(page.getByTestId('check-header')).toContainText('2 /');
     const slot = page.locator('.leaving-slot');
+    // Its text is on screen as it goes (read first: the slide is short).
+    const right = await slot.evaluate((el) => el.getBoundingClientRect().right);
+    expect(right).toBeGreaterThan(8);
     // The old check, panes and all, as a still copy where the previous check waits.
     await expect(slot.locator('.pane').first()).toBeAttached();
     expect(await slot.evaluate((el) => [(el as HTMLElement).inert, el.getAttribute('aria-hidden')])).toEqual([true, 'true']);
     expect(await slot.locator('[data-testid]').count()).toBe(0);
     expect(await slot.locator('.pane').allTextContents()).toContain(verse);
-    // Its text is on screen as it goes, and no peek card shows in its place.
-    const right = await slot.evaluate((el) => el.getBoundingClientRect().right);
-    expect(right).toBeGreaterThan(8);
+    // No peek card shows in its place.
     await expect(page.getByTestId('peek-prev')).toBeHidden();
     await expect(slot.locator('.pane')).toHaveCount(0);
   });

@@ -35,8 +35,9 @@ test('j30: only transform and opacity animate, timed by tC4 motion tokens, with 
     for (const [, value] of text.matchAll(/transition(?:-property)?\s*:\s*([^;}]+)/g))
       for (const part of value.split(','))
         // display, content-visibility and overlay do not move: with allow-discrete they only keep a closing element
-        // drawn until its fade ends (#42).
-        if (!/^\s*(transform|opacity|none)\b/.test(part) && !/^\s*(display|content-visibility|overlay)\b.*\ballow-discrete\b/.test(part))
+        // drawn until its fade ends (#42). grid-template-rows is the help's height alone, the one layout that moves:
+        // nothing else can grow to the height of its content.
+        if (!/^\s*(transform|opacity|none)\b/.test(part) && !/^\s*(display|content-visibility|overlay|visibility)\b.*\ballow-discrete\b/.test(part) && !(name.endsWith('app.css') && /^\s*grid-template-rows\b/.test(part) && /\.help-more\s*\{\s*transition/.test(text)))
           offences.push(`${name}: transition ${part.trim()}`);
     for (const [decl, value] of text.matchAll(/(?:animation|transition)(?:-[\w-]+)?\s*:\s*([^;}]+)/g)) {
       const literal = value.replace(/var\(--[\w-]+(?:\s*,[^)]*)?\)/g, '');
@@ -260,17 +261,18 @@ test.describe('with motion', () => {
     await expect(page.locator('[data-testid="verse"][open]')).toHaveCount(2);
     const opened = await page.locator('[data-testid="verse"][open]').nth(1).getByTestId('check-row').evaluateAll((els) => els.map((el) => getComputedStyle(el).animationName));
     expect(opened.every((n) => n === 'rise')).toBe(true);
-    // The help's text fades in closed, and rises in as it opens and as it closes again.
+    // The help grows and fades as it opens, and shrinks and fades as it closes.
     await page.getByTestId('check-row').first().click();
     const body = page.getByTestId('help-body');
+    await expect(body).toBeHidden();
+    const moving = () => page.locator('[data-testid="help"] .help-more').evaluate((el) => el.getAnimations().map((a) => (a as CSSTransition).transitionProperty).sort());
+    await page.getByTestId('help').locator('.help-toggle').click();
+    expect(await moving()).toEqual(['grid-template-rows', 'opacity', 'visibility']);
     await expect(body).toBeVisible();
-    expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['fade', 0]]);
+    await expect.poll(moving).toEqual([]);
     await page.getByTestId('help').locator('.help-toggle').click();
-    expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['rise', 0]]);
-    expect(await body.evaluate((el) => el.getAnimations().length)).toBe(1);
-    await page.getByTestId('help').locator('.help-toggle').click();
-    expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['fade', 0]]);
-    expect(await body.evaluate((el) => el.getAnimations().length)).toBe(1);
+    expect(await moving()).toEqual(['grid-template-rows', 'opacity', 'visibility']);
+    await expect(body).toBeHidden();
   });
 });
 
