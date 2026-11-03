@@ -92,10 +92,11 @@ function Help({ item, tool, ctx, article, open, onToggle, engine, still }: { ite
           {note.refs.join(' · ')}
         </p>
       )}
-      {/* Always drawn, so opening can grow from nothing; closed, it is out of reach. */}
+      {/* Always drawn on the check on screen, so opening can grow from nothing; closed, it is out of reach. A check at
+          the screen's edge draws its text only while the help is open: a whole tW article twice more would slow the swipe. */}
       <div className="help-more" data-open={open || undefined} {...(!open && { inert: '' })}>
         <div>
-          {blocks.length > 0 && (
+          {blocks.length > 0 && (open || !still) && (
             <div data-testid={id('help-body')} className="help-body">
               <Markdown blocks={blocks} />
             </div>
@@ -263,8 +264,6 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       <ErrorLine text={failure(context) ?? failure(status)} />
       {/* The check's content: it follows a swipe, with the checks before and after it at its edges. */}
       <div className="slide" ref={swipe.content}>
-        {/* The check that just left, whole, while this one slides in (useSwipe, leave.ts). Filled outside React. */}
-        <div className="leaving-slot" ref={swipe.slot} />
         {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
         {ctx && (
           <>

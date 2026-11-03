@@ -93,13 +93,6 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .peek { position: absolute; top: 0; bottom: 0; width: 100%; user-select: none; overflow: clip; display: flex; flex-direction: column; gap: var(--space-5); }
 .peek.next { left: calc(100% + var(--peek-gap)); }
 .peek.prev { right: calc(100% + var(--peek-gap)); }
-/* The check that just left (leave.ts), whole, where the peek on its side waits; the peek gives it the place. */
-.leaving-slot { position: absolute; top: 0; bottom: 0; width: 100%; overflow: clip; display: flex; flex-direction: column; gap: var(--space-5); pointer-events: none; }
-.leaving-slot:empty { display: none; }
-.leaving-slot.prev { right: calc(100% + var(--peek-gap)); }
-.leaving-slot.next { left: calc(100% + var(--peek-gap)); }
-.slide:has(> .leaving-slot.prev:not(:empty)) > .peek.prev,
-.slide:has(> .leaving-slot.next:not(:empty)) > .peek.next { visibility: hidden; }
 .check { min-height: 100dvh; box-sizing: border-box; padding-bottom: var(--bar); }
 .help-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; border-radius: 0; background: transparent; padding: 0; text-align: left; font-weight: var(--fw-regular); }
 .help-body { margin-top: var(--space-2); line-height: var(--lh-body); }

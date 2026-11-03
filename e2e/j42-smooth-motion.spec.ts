@@ -130,34 +130,33 @@ test.describe('with motion', () => {
     await expect(page.getByTestId('check-header')).toContainText('2 /');
   });
 
-  test('j42: a swipe lets the old check leave whole, with its panes, while the new one slides in', async ({ page, context }) => {
+  test('j42: a swipe moves the old check out whole, with its panes, and it waits as the previous check after', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openCheck(page, context);
     const verse = (await page.getByTestId('pane-ULT').textContent())!;
     await swipe(page, 0.8, 0.3);
+    // While it slides, the check on screen is still the old one, moving out, its text on screen.
+    await expect(page.getByTestId('check-header')).toContainText('1 /');
+    expect(await page.getByTestId('pane-ULT').evaluate((el) => el.getBoundingClientRect().right)).toBeGreaterThan(8);
     await expect(page.getByTestId('check-header')).toContainText('2 /');
-    const slot = page.locator('.leaving-slot');
-    // Its text is on screen as it goes (read first: the slide is short).
-    const right = await slot.evaluate((el) => el.getBoundingClientRect().right);
-    expect(right).toBeGreaterThan(8);
-    // The old check, panes and all, as a still copy where the previous check waits.
-    await expect(slot.locator('.pane').first()).toBeAttached();
-    expect(await slot.evaluate((el) => [(el as HTMLElement).inert, el.getAttribute('aria-hidden')])).toEqual([true, 'true']);
-    expect(await slot.locator('[data-testid]').count()).toBe(0);
-    expect(await slot.locator('.pane').allTextContents()).toContain(verse);
-    // No peek card shows in its place.
-    await expect(page.getByTestId('peek-prev')).toBeHidden();
-    await expect(slot.locator('.pane')).toHaveCount(0);
+    // Landed, the old check is the previous one at the edge, out of reach, and nothing was copied.
+    const prev = page.getByTestId('peek-prev');
+    expect(await prev.locator('.pane').allTextContents()).toContain(verse);
+    expect(await prev.evaluate((el) => [(el as HTMLElement).inert, el.getAttribute('aria-hidden')])).toEqual([true, 'true']);
+    await expect(page.locator('.leaving-slot')).toHaveCount(0);
   });
 
-  test('j42: Next lets the old check leave whole too', async ({ page, context }) => {
+  test('j42: Next and Previous move the old check out whole too', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openCheck(page, context);
+    const verse = (await page.getByTestId('pane-ULT').textContent())!;
     await page.getByRole('button', { name: /^Next/ }).click();
-    await expect(page.locator('.leaving-slot .pane').first()).toBeAttached();
-    await expect(page.locator('.leaving-slot .pane')).toHaveCount(0);
+    await expect(page.getByTestId('check-header')).toContainText('2 /');
+    expect(await page.getByTestId('peek-prev').locator('.pane').allTextContents()).toContain(verse);
+    const second = (await page.getByTestId('pane-ULT').textContent())!;
     await page.getByRole('button', { name: /Previous/ }).click();
-    await expect(page.locator('.leaving-slot.next .pane').first()).toBeAttached();
+    await expect(page.getByTestId('check-header')).toContainText('1 /');
+    expect(await page.getByTestId('peek-next').locator('.pane').allTextContents()).toContain(second);
   });
 
   test('j42: a decision fades its button and the bar edge in, through opacity alone', async ({ page, context }) => {
@@ -211,6 +210,26 @@ test.describe('with motion', () => {
     expect(opacities.some((o) => o > 0.05 && o < 0.95)).toBe(true);
     expect(opacities[opacities.length - 1]).toBe(0);
   });
+
+  test('j42: a tap on Valid while the check slides decides the check arriving, not the one leaving', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await placeJournaledProject(PROJECT);
+    await openProject(page, context, 'sample_burrito');
+    await page.getByRole('button', { name: 'Titus Words' }).click();
+    await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
+    await expect(page.getByTestId('help')).toBeVisible();
+    await settle(page);
+    const header = page.getByTestId('check-header');
+    const from = (await header.textContent())!;
+    await swipe(page, 0.8, 0.3);
+    // Tapped at once, while the next check is still sliding in.
+    await page.getByRole('button', { name: 'Valid', exact: true }).click();
+    await expect(header).not.toHaveText(from);
+    await expect(page.getByTestId('decided')).toHaveText('Valid');
+    await page.getByRole('button', { name: /Previous/ }).click();
+    await expect(header).toHaveText(from);
+    await expect(page.getByTestId('decided')).toHaveCount(0);
+  });
 });
 
 test('j42: with reduced motion no copy of the old screen or check is drawn', async ({ page, context }) => {
@@ -219,7 +238,7 @@ test('j42: with reduced motion no copy of the old screen or check is drawn', asy
   await expect(leaving(page)).toHaveCount(0);
   await page.getByRole('button', { name: /^Next/ }).click();
   await expect(page.getByTestId('check-header')).toContainText('2 /');
-  expect(await page.locator('.leaving-slot').evaluate((el) => el.childElementCount)).toBe(0);
+  await expect(page.locator('.leaving-slot')).toHaveCount(0);
   await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
   await expect(page.getByTestId('check-row').first()).toBeVisible();
   await expect(leaving(page)).toHaveCount(0);

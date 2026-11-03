@@ -1,5 +1,5 @@
-// What leaves the screen leaves as a still copy of itself: the screen on a screen change (App.tsx go), the check on a
-// swipe or on Previous and Next (useSwipe.ts). React has already moved on to what is on screen now; the copy is
+// What leaves the screen leaves as a still copy of itself: the screen on a screen change (App.tsx go). (A check on a
+// swipe needs none: its neighbour is already drawn at the edge, useSwipe.ts.) React has already moved on to what is on screen now; the copy is
 // plain DOM that app.css moves away, and it is gone when that move ends. Under reduced motion no copy is drawn.
 
 const motionAllowed = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -44,12 +44,3 @@ export const leaveScreen = (main: Element, back: boolean) => {
   view.scrollTop = scrollY;
 };
 
-/** The check in `content` leaves whole, into `slot` on its `side`, while `content` slides to the new check. The peeks
- * and the slot itself are not part of the check. */
-export const leaveCheck = (content: HTMLElement, slot: HTMLElement, side: 'prev' | 'next') => {
-  if (!motionAllowed()) return slot.replaceChildren();
-  const copy = stillCopy(content);
-  copy.querySelectorAll(':scope > .peek, :scope > .leaving-slot').forEach((el) => el.remove());
-  slot.className = `leaving-slot ${side}`;
-  hold(slot, [...copy.childNodes], content, 'transitionend');
-};
