@@ -43,6 +43,35 @@ const watchTransitions = (page: Page) =>
   });
 const transitions = (page: Page) => page.evaluate(() => (window as unknown as { seen: string[][] }).seen);
 
+type Track = { tops: number[]; gaps: number[]; started: string[] };
+/** From now on, each frame: the decide bar's top, how far the anchored verse is off it, and every animation that starts
+ * on the bar. A frame where the bar's new height is not yet written to `--bar` is read before the screen's resize
+ * observer runs, which is still ahead of that frame's paint, so it is not what is drawn and is left out. */
+const track = (page: Page) =>
+  page.evaluate(() => {
+    const bar = document.querySelector<HTMLElement>('[data-testid="decide-bar"]')!;
+    const seen: Track = { tops: [], gaps: [], started: [] };
+    const w = window as unknown as { seen: Track; tracking: boolean };
+    w.seen = seen;
+    w.tracking = true;
+    bar.addEventListener('animationstart', (e) => w.tracking && e.target === bar && seen.started.push(e.animationName));
+    const frame = () => {
+      if (!w.tracking) return;
+      requestAnimationFrame(frame);
+      if (bar.closest('main')!.style.getPropertyValue('--bar') !== `${bar.offsetHeight}px`) return;
+      const top = bar.getBoundingClientRect().top;
+      seen.tops.push(top);
+      seen.gaps.push(Math.abs(document.querySelector('[data-testid="target"]')!.getBoundingClientRect().bottom - top));
+    };
+    frame();
+  });
+const tracked = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { seen: Track; tracking: boolean };
+    w.tracking = false;
+    return w.seen;
+  });
+
 /** A finger on the phone's screen, through Chrome's touch input (as j31). */
 const swipe = async (page: Page, from: number, to: number) => {
   const cdp = await page.context().newCDPSession(page);
@@ -177,6 +206,45 @@ test.describe('with motion', () => {
     expect(await valid.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(fill);
     expect(await page.getByTestId('decide-bar').evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgba(0, 0, 0, 0)');
     expect((await transitions(page)).filter(([, , prop]) => prop !== 'opacity' && prop !== 'transform')).toEqual([]);
+  });
+
+  test('j42: the bar and the verse on it slide up when Next comes in, and down when it goes, through transform alone', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await placeJournaledProject(PROJECT);
+    await openProject(page, context, 'sample_burrito');
+    await page.getByRole('button', { name: 'Titus Words' }).click();
+    await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
+    await expect(page.getByTestId('help')).toBeVisible();
+    await settle(page);
+    const bar = page.getByTestId('decide-bar');
+
+    // Deciding brings Next in: the bar grows, frame by frame.
+    await track(page);
+    await page.getByRole('button', { name: 'Valid', exact: true }).click();
+    await expect(page.getByRole('button', { name: /^Next/ })).toBeVisible();
+    await settle(page);
+    const up = await tracked(page);
+    expect(up.tops.at(-1)!).toBeLessThan(up.tops[0] - 10);
+
+    // Next to a check not decided yet: the bar shrinks again.
+    await track(page);
+    await page.getByRole('button', { name: /^Next/ }).click();
+    // The large Next goes; the small one in the row above comes back.
+    await expect(bar.locator('button.next')).toHaveCount(0);
+    await settle(page);
+    const down = await tracked(page);
+    expect(down.tops.at(-1)!).toBeGreaterThan(down.tops[0] + 10);
+
+    for (const move of [up, down]) {
+      // No frame jumps more than a third of the way: the bar moves, it does not snap.
+      const way = Math.abs(move.tops.at(-1)! - move.tops[0]);
+      const steps = move.tops.slice(1).map((t, i) => Math.abs(t - move.tops[i]));
+      expect(Math.max(...steps)).toBeLessThan(way / 3);
+      // The verse rides on the bar every frame, and the bar does not fade in again at the end (a flicker).
+      expect(Math.max(...move.gaps)).toBeLessThan(1);
+      expect(move.started).toHaveLength(1);
+      expect(move.started[0]).toMatch(/^settle/);
+    }
   });
 
   test('j42: the chapter sheet and a verse fade out as they close', async ({ page, context }) => {

@@ -172,6 +172,8 @@ button:disabled { opacity: 0.45; }
    transform and opacity move, timed by tC4's motion tokens, and only when the phone allows motion. */
 @keyframes rise { from { opacity: 0; transform: translateY(var(--space-3)); } }
 @keyframes fade { from { opacity: 0; } }
+@keyframes settle { from { transform: translateY(var(--grew)); } }
+@keyframes settle-again { from { transform: translateY(var(--grew)); } }
 @keyframes pulse { 50% { opacity: 0.5; } }
 @keyframes sheet-up { from { transform: translateY(100%); } }
 @keyframes enter-from-end { from { opacity: 0; transform: translateX(var(--space-10)); } }
@@ -213,6 +215,15 @@ button:disabled { opacity: 0.45; }
   :root[data-nav='back'] #root > main:not(.check),
   :root[data-nav='back'] #root > main.check > :not(.bottombar) { animation-name: enter-from-start; }
   :root[data-nav] #root > main.check > .bottombar { animation: fade var(--dur-panel) var(--ease-standard); }
+  /* The bar grew (CheckScreen --grew): it and the verse anchored on it slide up from where they were, together. As
+     specific as the rule above, which stays on after a screen change, so this one wins. */
+  :root #root > main.check[data-grew] > .bottombar,
+  :root #root > main.check[data-grew] > .slide > .pane.target { animation: settle var(--dur-panel) var(--ease-standard); }
+  :root #root > main.check[data-grew='b'] > .bottombar,
+  :root #root > main.check[data-grew='b'] > .slide > .pane.target { animation-name: settle-again; }
+  main[data-grew] .slide > .pane.target .decided { animation: rise var(--dur-panel) var(--ease-standard); }
+  /* Shrunk, the bar starts higher than the screen's edge: a copy of its fill just under it covers the gap it leaves. */
+  main[data-grew] > .bottombar { box-shadow: var(--shadow-sheet), 0 max(0px, calc(-1 * var(--grew))) 0 var(--uw-ocean); }
   /* The old screen shifts a little the other way and fades out under the new one, a little sooner than the new one
      comes in, so the two do not read over each other. The layer moves whole, its bottom bar too. */
   .leaving { animation: exit-to-start var(--dur-enter) var(--ease-standard) forwards; }

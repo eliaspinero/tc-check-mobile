@@ -242,9 +242,25 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   // The bar's height changes with the decision and the phone's text size; the anchored verse sits on top of it (--bar in app.css).
   const screen = useRef<HTMLElement>(null);
   const bar = useRef<HTMLElement>(null);
+  // When it grows or shrinks (Next comes in on a decision, or goes on a check not decided), the bar and the verse start
+  // where they were and slide to their new place together (app.css settle), instead of jumping. This runs after layout
+  // and before the frame is drawn. `data-grew` stays once set: taking it off would let the screen's own fade-in
+  // play on the bar again (a flicker). Each change flips it between `a` and `b`, two names for the same move, so the
+  // move plays again.
   useEffect(() => {
-    const seen = new ResizeObserver(() => screen.current!.style.setProperty('--bar', `${bar.current!.offsetHeight}px`));
-    seen.observe(bar.current!);
+    const main = screen.current!;
+    const sheet = bar.current!;
+    let was = 0;
+    const seen = new ResizeObserver(() => {
+      const now = sheet.offsetHeight;
+      main.style.setProperty('--bar', `${now}px`);
+      if (was && now !== was) {
+        main.style.setProperty('--grew', `${now - was}px`);
+        main.dataset.grew = main.dataset.grew === 'a' ? 'b' : 'a';
+      }
+      was = now;
+    });
+    seen.observe(sheet);
     return () => seen.disconnect();
   }, []);
 
