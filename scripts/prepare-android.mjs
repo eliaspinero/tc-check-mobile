@@ -1,6 +1,8 @@
 // Run after `tauri android init`: the generated Android project (shell/src-tauri/gen/android, git-ignored)
 // is recreated by every init, so the loopback cleartext rule the WebView needs is applied from here.
 // It copies shell/android/network_security_config.xml into the app's res/xml and points the manifest at it.
+// It also copies the launcher icons (`tauri icon shell/app-icon.svg` writes them to src-tauri/icons/android),
+// because init writes Tauri's default icons.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -29,3 +31,6 @@ if (!fs.readFileSync(manifest, 'utf8').includes(attr)) {
   process.exit(1);
 }
 console.log('prepare-android: loopback cleartext allowed (res/xml/network_security_config.xml)');
+
+fs.cpSync(path.join(root, 'shell/src-tauri/icons/android'), path.join(app, 'res'), { recursive: true });
+console.log('prepare-android: launcher icons copied (shell/src-tauri/icons/android)');
