@@ -3,6 +3,8 @@ import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, readIngredient, rigUp, writeIngre
 import { openProject } from './helpers/session';
 
 const swipe = async (page: Page, direction: 'left' | 'right') => {
+  // A mouse drag selects text, and a drag that starts on selected text moves that text instead: start from none.
+  await page.evaluate(() => getSelection()!.removeAllRanges());
   const box = (await page.getByTestId('check-screen').boundingBox())!;
   const y = box.y + box.height / 2;
   const [from, to] = direction === 'left' ? [box.x + box.width * 0.8, box.x + box.width * 0.2] : [box.x + box.width * 0.2, box.x + box.width * 0.8];

@@ -6,6 +6,7 @@ import BookPicker from './screens/BookPicker';
 import CheckList from './screens/CheckList';
 import CheckScreen from './screens/CheckScreen';
 import Skeleton from './screens/Skeleton';
+import { leaveScreen } from './screens/leave';
 import { Door43ApiError, door43Api, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
@@ -35,10 +36,13 @@ export default function App() {
   const session = auth.state === 'signedIn' ? auth.session : null;
   const signIn = (s: Door43Session) => setAuth({ state: 'signedIn', session: s });
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
-  // Into a screen, the new screen slides in from the end; Back, from the start (app.css, `data-nav`). Moves
-  // within a screen (a check to the next) use setScreen and keep the screen where it is.
+  // Into a screen, the new screen slides in from the end; Back, from the start (app.css, `data-nav`), while the old
+  // one shifts a little the other way and fades under it (leave.ts). Moves within a screen (a check to the next)
+  // use setScreen and keep the screen where it is.
   const go = (next: Screen, back = false) => {
     document.documentElement.dataset.nav = back ? 'back' : 'forward';
+    const main = document.querySelector('#root > main');
+    if (main) leaveScreen(main, back);
     setScreen(next);
   };
   // The session screens act for. Sign-out clears it at once, so work that ends later (a clone) opens nothing.

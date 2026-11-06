@@ -34,13 +34,17 @@ test('j30: only transform and opacity animate, timed by tC4 motion tokens, with 
       for (const [, prop] of body.matchAll(/([\w-]+)\s*:/g)) if (!['transform', 'opacity'].includes(prop)) offences.push(`${name}: @keyframes ${kf} animates ${prop}`);
     for (const [, value] of text.matchAll(/transition(?:-property)?\s*:\s*([^;}]+)/g))
       for (const part of value.split(','))
-        if (!/^\s*(transform|opacity|none)\b/.test(part)) offences.push(`${name}: transition ${part.trim()}`);
+        // display, content-visibility and overlay do not move: with allow-discrete they only keep a closing element
+        // drawn until its fade ends (#42). grid-template-rows is the help's height alone, the one layout that moves:
+        // nothing else can grow to the height of its content.
+        if (!/^\s*(transform|opacity|none)\b/.test(part) && !/^\s*(display|content-visibility|overlay|visibility)\b.*\ballow-discrete\b/.test(part) && !(name.endsWith('app.css') && /^\s*grid-template-rows\b/.test(part) && /\.help-more\s*\{\s*transition/.test(text)))
+          offences.push(`${name}: transition ${part.trim()}`);
     for (const [decl, value] of text.matchAll(/(?:animation|transition)(?:-[\w-]+)?\s*:\s*([^;}]+)/g)) {
       const literal = value.replace(/var\(--[\w-]+(?:\s*,[^)]*)?\)/g, '');
       if (/\d*\.?\d+m?s\b|cubic-bezier|steps\(|\b(?:ease|ease-in|ease-out|ease-in-out|linear)\b/.test(literal)) offences.push(`${name}: ${decl.trim()}`);
     }
   }
-  expect(offences, 'Animate only transform and opacity, with var(--dur-*), var(--ease-standard) and var(--stagger) from client/src/ds/tokens/motion.css').toEqual([]);
+  expect(offences, 'Animate only transform and opacity (display, content-visibility and overlay only with allow-discrete), with var(--dur-*), var(--ease-standard) and var(--stagger) from client/src/ds/tokens/motion.css').toEqual([]);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as Record<string, Record<string, string>>;
   const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
   const libraries = ['framer-motion', 'motion', 'react-spring', '@react-spring/web', 'gsap', 'animejs', 'react-transition-group', '@formkit/auto-animate', 'popmotion'];
@@ -257,17 +261,18 @@ test.describe('with motion', () => {
     await expect(page.locator('[data-testid="verse"][open]')).toHaveCount(2);
     const opened = await page.locator('[data-testid="verse"][open]').nth(1).getByTestId('check-row').evaluateAll((els) => els.map((el) => getComputedStyle(el).animationName));
     expect(opened.every((n) => n === 'rise')).toBe(true);
-    // The help's text fades in closed, and rises in as it opens and as it closes again.
+    // The help grows and fades as it opens, and shrinks and fades as it closes.
     await page.getByTestId('check-row').first().click();
     const body = page.getByTestId('help-body');
+    await expect(body).toBeHidden();
+    const moving = () => page.locator('[data-testid="help"] .help-more').evaluate((el) => el.getAnimations().map((a) => (a as CSSTransition).transitionProperty).sort());
+    await page.getByTestId('help').locator('.help-toggle').click();
+    expect(await moving()).toEqual(['grid-template-rows', 'opacity', 'visibility']);
     await expect(body).toBeVisible();
-    expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['fade', 0]]);
-    await page.locator('.help-toggle').click();
-    expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['rise', 0]]);
-    expect(await body.evaluate((el) => el.getAnimations().length)).toBe(1);
-    await page.locator('.help-toggle').click();
-    expect(await motionOf(page, '[data-testid="help-body"]')).toEqual([['fade', 0]]);
-    expect(await body.evaluate((el) => el.getAnimations().length)).toBe(1);
+    await expect.poll(moving).toEqual([]);
+    await page.getByTestId('help').locator('.help-toggle').click();
+    expect(await moving()).toEqual(['grid-template-rows', 'opacity', 'visibility']);
+    await expect(body).toBeHidden();
   });
 });
 
@@ -294,7 +299,7 @@ test('j30: with reduced motion nothing moves, and no screen slides in', async ({
   expect(await still(page)).toEqual({ animations: 0, moving: [] });
   await page.keyboard.press('Escape');
   await page.getByTestId('check-row').first().click();
-  await page.locator('.help-toggle').click();
+  await page.getByTestId('help').locator('.help-toggle').click();
   await expect(page.getByTestId('help-body')).toBeVisible();
   expect(await still(page)).toEqual({ animations: 0, moving: [] });
   await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();

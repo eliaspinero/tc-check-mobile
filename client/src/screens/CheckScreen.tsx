@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
@@ -68,77 +68,113 @@ function TargetVerse({ text, words, selected, onToggle }: { text: string; words:
   return <>{parts}</>;
 }
 
-/** The help above the sources: the tW article or the tN note, closed to its title and first block. */
-function Help({ item, tool, ctx, source, engine }: { item: CheckItem; tool: Tool; ctx: CheckContext; source: ProjectSource; engine: CheckingEngine }) {
-  const [article, setArticle] = useState<{ title: string; blocks: ArticleBlock[] } | null>(null);
-  const [open, setOpen] = useState(false);
-  const c = item.contextId as { groupId: string; occurrenceNote?: string };
-  const category = (item.category as string | undefined) ?? 'kt';
+type Article = { title: string; blocks: ArticleBlock[] };
+const articleKey = (item: CheckItem) => `${(item.category as string | undefined) ?? 'kt'}/${item.contextId.groupId}`;
 
-  useEffect(() => {
-    setArticle(null);
-    if (tool !== 'translationWords' || !ctx.twPath) return;
-    // A swipe moves on before a slow read answers: an answer for a check no longer shown is dropped.
-    let current = true;
-    source.readText(ctx.twPath, `payload/${category}/${c.groupId}.md`).then(
-      (md) => {
-        if (!current) return;
-        const { title, body } = splitTitle(md);
-        setArticle({ title: title ?? c.groupId, blocks: engine.articleBlocks(body) });
-      },
-      () => current && setArticle({ title: c.groupId, blocks: engine.articleBlocks(t('articleMissing')) }),
-    );
-    return () => {
-      current = false;
-    };
-  }, [tool, ctx.twPath, category, c.groupId, source, engine]);
+/** The help above the sources: the tW article or the tN note, closed to its title, with a note's Academy articles small under it. */
+function Help({ item, tool, ctx, article, open, onToggle, engine, still }: { item: CheckItem; tool: Tool; ctx: CheckContext; article?: Article; open: boolean; onToggle: () => void; engine: CheckingEngine; still: boolean }) {
+  const c = item.contextId as { groupId: string; occurrenceNote?: string };
+  const id = (name: string) => (still ? undefined : name);
 
   // A note is titled by the words it is about, as tC4's cards are; its Academy articles become tags.
   const note = tool === 'translationNotes' ? noteWithoutAcademyLinks(c.occurrenceNote ?? '', c.groupId) : null;
   const title = note ? gatewayOf(engine, ctx.panes, item) : (article?.title ?? c.groupId);
   const blocks = note ? engine.noteBlocks(note.text) : (article?.blocks ?? []);
-  // Closed, the help shows its first block; a heading first shows the paragraph under it.
-  const preview = blocks.find((b) => b.kind !== 'h');
 
   return (
-    <section className="help" data-testid="help">
-      <button className="help-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span data-testid="help-title" className="help-title">{title}</span>
-        <span className="chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
+    <section className="help" data-testid={id('help')}>
+      <button className="help-toggle" aria-expanded={open} onClick={onToggle}>
+        <span data-testid={id('help-title')} className="help-title">{title}</span>
+        <span className="chevron" aria-hidden="true">▾</span>
       </button>
       {note && (
-        <p data-testid="help-refs" className="tags">
+        <p data-testid={id('help-refs')} className="tags">
           {note.refs.join(' · ')}
         </p>
       )}
-      {blocks.length > 0 && (
-        <div data-testid="help-body" className={open ? 'help-body' : 'help-body clamp'}>
-          <Markdown blocks={open ? blocks : preview ? [preview] : []} />
+      {/* Always drawn on the check on screen, so opening can grow from nothing; closed, it is out of reach. A check at
+          the screen's edge draws its text only while the help is open: a whole tW article twice more would slow the swipe. */}
+      <div className="help-more" data-open={open || undefined} {...(!open && { inert: '' })}>
+        <div>
+          {blocks.length > 0 && (open || !still) && (
+            <div data-testid={id('help-body')} className="help-body">
+              <Markdown blocks={blocks} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }
 
-/** The check before or after this one, as it shows at the edge during a swipe: its verse and the words it is
- * about, on the help's card. Only a hint of it (the full check renders once the swipe lands), so it is hidden
- * from screen readers. */
-function Peek({ side, book, item, panes, engine }: { side: 'prev' | 'next'; book: string; item: CheckItem; panes: CheckContext['panes']; engine: CheckingEngine }) {
-  const { chapter, verse } = refOf(item);
+/** What a check shows in the slide: its help, the checker's verse and the sources. `still` is for a neighbour at the
+ * screen's edge: it looks the same, and has no test ids, because the check on screen is the one to find. */
+function CheckBody({ item, tool, ctx, article, helpOpen, onHelp, journaled, engine, chosen, onToggle, still = false }: {
+  item: CheckItem;
+  tool: Tool;
+  ctx: CheckContext;
+  article?: Article;
+  helpOpen: boolean;
+  onHelp: () => void;
+  journaled: boolean;
+  engine: CheckingEngine;
+  /** The words tapped on this check; with none, its stored selection. */
+  chosen?: ReadonlySet<number>;
+  onToggle?: (i: number) => void;
+  still?: boolean;
+}) {
+  const id = (name: string) => (still ? undefined : name);
+  const quote = item.contextId.quote as string | Array<{ word: string }>;
+  const occurrence = Number(item.contextId.occurrence);
+  const targetText = engine.verseText(verseOf(ctx.target, item));
+  const target = engine.targetTokens(targetText, item.selections as Selection[] | false);
+  const decided = decisionOf(engine, item);
   return (
-    <div className={`peek ${side}`} data-testid={`peek-${side}`} aria-hidden="true">
-      <div className="help">
-        <p className="help-title">{`${bookName(book)} ${chapter}:${verse}`}</p>
-        <p>{gatewayOf(engine, panes, item)}</p>
-      </div>
-    </div>
+    <>
+      <Help item={item} tool={tool} ctx={ctx} article={article} open={helpOpen} onToggle={onHelp} engine={engine} still={still} />
+      {ctx.panes.map((pane) => {
+        const verse = verseOf(pane.book, item);
+        const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
+        const hl = new Set(highlighted);
+        return (
+          <section key={pane.label} className="pane" data-testid={id(`pane-${pane.label}`)}>
+            <span className="lb">{pane.label}</span>
+            <p>
+              {pane.book === null && <span className="muted">{t('sourceMissing')}</span>}
+              {pane.book !== null && !verse && <span className="muted">{t('verseMissing')}</span>}
+              {tokens.map((tk, i) => (hl.has(i) ? <mark key={i} data-hl className="hl">{tk.text}</mark> : <span key={i}>{tk.text}</span>))}
+            </p>
+          </section>
+        );
+      })}
+      {!journaled && <p className="muted">{t('needsJournal')}</p>}
+      {/* The checker's own verse last and anchored right above the decide bar (app.css): the help and the sources scroll
+          behind it, so it is never lost and the work stays within thumb reach. */}
+      <section className="pane target" data-testid={id('target')} dir={ctx.dir}>
+        <span className="lb">{t('yourTranslation')}</span>
+        <p>
+          <TargetVerse text={targetText} words={target.tokens} selected={chosen ?? new Set(target.selected)} onToggle={journaled ? onToggle : undefined} />
+        </p>
+        {decided && (
+          <p className="decided" data-testid={id('decided')} data-status={decided}>
+            {t(decided)}
+          </p>
+        )}
+      </section>
+    </>
   );
 }
+
+/** Decided as the list counts it (tC4 isDecided); an Invalid status shows as Invalid. */
+const decisionOf = (engine: CheckingEngine, item: CheckItem) => (engine.progress([item]).decided === 1 ? (item.status === 'invalid' ? 'invalid' : 'valid') : null);
 
 export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onDecided, onBack }: Props) {
   const [context, setContext] = useState<Load<CheckContext>>(LOADING);
   const ctx = ready(context);
   const [picking, setPicking] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // tW articles read so far, by category/groupId: the check on screen and those either side, so a swipe lands on a full help.
+  const [articles, setArticles] = useState<ReadonlyMap<string, Article>>(new Map());
   const total = session.items.length;
   const swipe = useSwipe(index < total - 1 ? () => onIndex(index + 1) : undefined, index > 0 ? () => onIndex(index - 1) : undefined);
 
@@ -150,9 +186,23 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   }, [repoPath, book, session.rung, source, engine]);
 
   const item = session.items[index];
+  const twPath = tool === 'translationWords' ? ctx?.twPath : undefined;
+  const missingKey = twPath ? [...new Set([session.items[index - 1], item, session.items[index + 1]].filter(Boolean).map(articleKey))].filter((k) => !articles.has(k)).join(',') : '';
+  useEffect(() => {
+    if (!missingKey || !twPath) return;
+    Promise.all(
+      missingKey.split(',').map(async (key): Promise<[string, Article]> => {
+        const groupId = key.split('/')[1];
+        try {
+          const { title, body } = splitTitle(await source.readText(twPath, `payload/${key}.md`));
+          return [key, { title: title ?? groupId, blocks: engine.articleBlocks(body) }];
+        } catch {
+          return [key, { title: groupId, blocks: engine.articleBlocks(t('articleMissing')) }];
+        }
+      }),
+    ).then((read) => setArticles((old) => new Map([...old, ...read])));
+  }, [missingKey, twPath, source, engine]);
   const ref = refOf(item);
-  const quote = item.contextId.quote as string | Array<{ word: string }>;
-  const occurrence = Number(item.contextId.occurrence);
   const targetText = ctx ? engine.verseText(verseOf(ctx.target, item)) : '';
   const target = ctx ? engine.targetTokens(targetText, item.selections as Selection[] | false) : null;
   // The words tapped on a check; on another check, or before the first tap, the stored selection.
@@ -183,15 +233,39 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
     }
   };
   const mark = (button: 'valid' | 'invalid') => record(engine.journal.patch(button, targetText, [...chosen]));
-  // Decided as the list counts it (tC4 isDecided); an Invalid status shows as Invalid.
-  const decided = engine.progress([item]).decided === 1 ? (item.status === 'invalid' ? 'invalid' : 'valid') : null;
+  const decided = decisionOf(engine, item);
   const last = index === total - 1;
   const after = last ? null : refOf(session.items[index + 1]);
   const afterRef = after && (after.chapter !== ref.chapter || after.verse !== ref.verse) ? `${after.chapter}:${after.verse}` : null;
   const bigNext = decided !== null || !session.journaled;
 
+  // The bar's height changes with the decision and the phone's text size; the anchored verse sits on top of it (--bar in app.css).
+  const screen = useRef<HTMLElement>(null);
+  const bar = useRef<HTMLElement>(null);
+  // When it grows or shrinks (Next comes in on a decision, or goes on a check not decided), the bar and the verse start
+  // where they were and slide to their new place together (app.css settle), instead of jumping. This runs after layout
+  // and before the frame is drawn. `data-grew` stays once set: taking it off would let the screen's own fade-in
+  // play on the bar again (a flicker). Each change flips it between `a` and `b`, two names for the same move, so the
+  // move plays again.
+  useEffect(() => {
+    const main = screen.current!;
+    const sheet = bar.current!;
+    let was = 0;
+    const seen = new ResizeObserver(() => {
+      const now = sheet.offsetHeight;
+      main.style.setProperty('--bar', `${now}px`);
+      if (was && now !== was) {
+        main.style.setProperty('--grew', `${now - was}px`);
+        main.dataset.grew = main.dataset.grew === 'a' ? 'b' : 'a';
+      }
+      was = now;
+    });
+    seen.observe(sheet);
+    return () => seen.disconnect();
+  }, []);
+
   return (
-    <main className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe.area}>
+    <main ref={screen} className={session.journaled ? 'screen check deciding' : 'screen check'} data-testid="check-screen" {...swipe.area}>
       <TopBar
         title={`${bookName(book)} ${ref.chapter}:${ref.verse}`}
         titleTestId="check-title"
@@ -209,41 +283,24 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
         {ctx && (
           <>
-            {index > 0 && <Peek side="prev" book={book} item={session.items[index - 1]} panes={ctx.panes} engine={engine} />}
-            {!last && <Peek side="next" book={book} item={session.items[index + 1]} panes={ctx.panes} engine={engine} />}
-            <Help item={item} tool={tool} ctx={ctx} source={source} engine={engine} />
-            {/* The checker's own verse right under the help, so it is in view without scrolling; the sources follow in full. */}
-            <section className="pane target" data-testid="target" dir={ctx.dir}>
-              <span className="lb">{t('yourTranslation')}</span>
-              <p>{target && <TargetVerse text={targetText} words={target.tokens} selected={chosen} onToggle={session.journaled ? toggle : undefined} />}</p>
-              {decided && (
-                <p className="decided" data-testid="decided" data-status={decided}>
-                  {t(decided)}
-                </p>
-              )}
-            </section>
-            {!session.journaled && <p className="muted">{t('needsJournal')}</p>}
-            {ctx.panes.map((pane) => {
-              const verse = verseOf(pane.book, item);
-              const { tokens, highlighted } = engine.sourceTokens(verse, quote, occurrence);
-              const hl = new Set(highlighted);
+            {/* The checks either side wait just past the screen, whole, so a swipe shows what will land. Out of reach until then. */}
+            {[index - 1, index + 1].map((i) => {
+              const near = session.items[i];
+              if (!near) return null;
+              const side = i < index ? 'prev' : 'next';
               return (
-                <section key={pane.label} className="pane" data-testid={`pane-${pane.label}`}>
-                  <span className="lb">{pane.label}</span>
-                  <p>
-                    {pane.book === null && <span className="muted">{t('sourceMissing')}</span>}
-                    {pane.book !== null && !verse && <span className="muted">{t('verseMissing')}</span>}
-                    {tokens.map((tk, i) => (hl.has(i) ? <mark key={i} data-hl className="hl">{tk.text}</mark> : <span key={i}>{tk.text}</span>))}
-                  </p>
-                </section>
+                <div key={side} className={`peek ${side}`} data-testid={`peek-${side}`} aria-hidden="true" {...{ inert: '' }}>
+                  <CheckBody item={near} tool={tool} ctx={ctx} article={articles.get(articleKey(near))} helpOpen={helpOpen} onHelp={() => undefined} journaled={session.journaled} engine={engine} still />
+                </div>
               );
             })}
+            <CheckBody item={item} tool={tool} ctx={ctx} article={articles.get(articleKey(item))} helpOpen={helpOpen} onHelp={() => setHelpOpen(!helpOpen)} journaled={session.journaled} engine={engine} chosen={chosen} onToggle={toggle} />
           </>
         )}
       </div>
       {/* tC4's Ocean sheet (owner's design B3·1). Deciding comes first; once decided, or where the project takes
           no decisions, one large Next says which verse it goes to. There is only ever one Next. */}
-      <nav className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
+      <nav ref={bar} className="bottombar" data-testid="decide-bar" data-status={decided ?? undefined}>
         <div className="progress" aria-hidden="true">
           <span style={{ transform: `scaleX(${(index + 1) / total})` }} />
         </div>
@@ -282,18 +339,17 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
           </button>
         )}
       </nav>
-      {picking && (
-        <ChapterGrid
-          chapters={chapterStates(book, session.items, engine)}
-          current={ref.chapter}
-          onPick={(chapter) => {
-            setPicking(false);
-            const first = session.items.findIndex((i) => refOf(i).chapter === chapter);
-            if (first >= 0) onIndex(first);
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
+      <ChapterGrid
+        open={picking}
+        chapters={chapterStates(book, session.items, engine)}
+        current={ref.chapter}
+        onPick={(chapter) => {
+          setPicking(false);
+          const first = session.items.findIndex((i) => refOf(i).chapter === chapter);
+          if (first >= 0) onIndex(first);
+        }}
+        onClose={() => setPicking(false)}
+      />
     </main>
   );
 }

@@ -104,7 +104,7 @@ test('j9: the help opens and closes with its button, and tW and tN helps render 
   await page.getByTestId('check-row').filter({ hasText: /^Diosof God/ }).first().click();
   const toggle = page.getByRole('button', { name: /Dios/ });
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByTestId('help-body').locator('h3, h4')).toHaveCount(0);
+  await expect(page.getByTestId('help-body')).toBeHidden();
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   const body = page.getByTestId('help-body');

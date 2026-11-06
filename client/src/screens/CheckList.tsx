@@ -188,17 +188,16 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
           </div>
         </>
       )}
-      {picking && (
-        <ChapterGrid
-          chapters={chapterStates(book, items, engine)}
-          current={shown}
-          onPick={(c) => {
-            setChapter(c);
-            setPicking(false);
-          }}
-          onClose={() => setPicking(false)}
-        />
-      )}
+      <ChapterGrid
+        open={picking}
+        chapters={chapterStates(book, items, engine)}
+        current={shown}
+        onPick={(c) => {
+          setChapter(c);
+          setPicking(false);
+        }}
+        onClose={() => setPicking(false)}
+      />
     </main>
   );
 }

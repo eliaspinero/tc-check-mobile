@@ -68,14 +68,42 @@ test('j7 polish: no help shows an rc:// address', async ({ page, context }) => {
   }
 });
 
-test('j7 polish: the target verse shows without scrolling on a 375 × 812 phone', async ({ page, context }) => {
+test('j7 polish: the target verse stays anchored right above the bar on a 375 × 812 phone: help open, scrolled or decided', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await openTitus(page, context, 'Words');
   await page.getByTestId('check-row').first().click();
   await expect(page.getByTestId('target')).toContainText('Pablo, siervo de Dios');
-  const target = (await page.getByTestId('target').boundingBox())!;
-  const bar = (await page.locator('.bottombar').boundingBox())!;
-  expect(target.y + target.height).toBeLessThanOrEqual(bar.y);
+  const anchored = async () => {
+    await expect(async () => {
+      const target = (await page.getByTestId('target').boundingBox())!;
+      const bar = (await page.locator('.bottombar').boundingBox())!;
+      expect(target.y).toBeGreaterThan(0);
+      expect(Math.abs(target.y + target.height - bar.y)).toBeLessThanOrEqual(1);
+    }).toPass();
+  };
+  await anchored();
+  await page.getByTestId('help').locator('.help-toggle').click();
+  await anchored();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
+  await anchored();
+  // Nothing covers it: the verse itself is what a tap in its middle lands on.
+  const hit = await page.getByTestId('target').evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  });
+  expect(hit).toBe(true);
+});
+
+test('j7 polish: the help closes to its title and the small Academy tag, and its text is out of reach until it opens', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await openTitus(page, context, 'Notes');
+  await page.getByTestId('check-row').first().click();
+  await expect(page.getByTestId('help-title')).toBeVisible();
+  await expect(page.getByTestId('help-refs')).toBeVisible();
+  await expect(page.getByTestId('help-body')).toBeHidden();
+  await page.getByTestId('help').locator('.help-toggle').click();
+  await expect(page.getByTestId('help-body')).toBeVisible();
+  await expect(page.getByTestId('help-title')).toBeVisible();
 });
 
 test('j7 polish: one typeface for the whole app', async ({ page, context }) => {

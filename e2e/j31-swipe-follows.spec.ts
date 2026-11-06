@@ -73,7 +73,7 @@ test.describe('with motion', () => {
     await f.lift();
     await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
     // The check that showed at the edge is the one now open, and it settles in its place.
-    expect(shown).toContain(await page.getByTestId('check-title').textContent());
+    expect(shown).toContain(await page.getByTestId('help-title').textContent());
     await expect.poll(() => helpX(page)).toBe(rest);
   });
 
@@ -101,6 +101,8 @@ test.describe('with motion', () => {
     const rest = await helpX(page);
     await f.press(0.6, 0.5);
     expect(await helpX(page)).toBeLessThan(rest - 20);
+    // Held still before the release: a quick short move is a flick, and goes on.
+    await page.waitForTimeout(200);
     await f.lift();
     expect(await sliding(page)).toBe(true);
     await expect.poll(() => helpX(page)).toBe(rest);
@@ -138,11 +140,57 @@ test.describe('with motion', () => {
     await expect(at(page)).toHaveText(header);
   });
 
+  test('j31: the neighbour shows whole while dragging, out of reach, as it will show once it lands', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const f = await finger(page);
+    await f.press(0.8, 0.5);
+    const peek = page.getByTestId('peek-next');
+    expect(await peek.locator('.pane').count()).toBeGreaterThan(1);
+    expect(await peek.evaluate((el) => [(el as HTMLElement).inert, el.getAttribute('aria-hidden')])).toEqual([true, 'true']);
+    expect(await peek.locator('[data-testid]').count()).toBe(0);
+    // What is drawn, not the text of a closed help, which only the check on screen keeps.
+    const shown = await peek.locator('.pane, .help').allInnerTexts();
+    await f.lift();
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+    expect(await page.locator('.slide > .pane, .slide > .help').allInnerTexts()).toEqual(shown);
+  });
+
+  test('j31: a short quick flick goes to the next check, and a short slow move does not', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const f = await finger(page);
+    await f.press(0.6, 0.5);
+    await page.waitForTimeout(200);
+    await f.lift();
+    await expect.poll(() => sliding(page)).toBe(false);
+    await expect(at(page)).toHaveText(/ 1 \/ \d+$/);
+    await f.press(0.6, 0.5);
+    await f.lift();
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+  });
+
+  test('j31: a drag that began sideways keeps following the finger when it drifts down', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await open(page, context);
+    const rest = await helpX(page);
+    const cdp = await context.newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove', x: number, y: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: [{ x, y }] });
+    await touch('touchStart', 300, 300);
+    await touch('touchMove', 280, 302);
+    await touch('touchMove', 260, 304);
+    // Now more down than across, and still further across: the check follows.
+    await touch('touchMove', 240, 420);
+    await expect.poll(() => helpX(page)).toBe(rest - 60);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+  });
+
   test('j31: a vertical move scrolls and does not drag the check', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await open(page, context);
     // The help open makes the screen taller than the phone.
-    await page.locator('.help-toggle').click();
+    await page.getByTestId('help').locator('.help-toggle').click();
     const rest = await helpX(page);
     const f = await finger(page);
     await f.press(0.5, 0.45, -250);
@@ -177,30 +225,33 @@ test.describe('with motion', () => {
     expect(await page.evaluate(() => getSelection()!.toString().trim().length)).toBeGreaterThan(0);
   });
 
-  test('j31: the check left behind shows its verse and words as it slides out', async ({ page, context }) => {
+  test('j31: the check left behind shows its verse and words as it slides out, and waits at the edge after', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await open(page, context);
-    const title = (await page.getByTestId('check-title').textContent())!;
+    const title = (await page.getByTestId('help-title').textContent())!;
     await swipe(page, 0.8, 0.3);
-    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
-    // While the new check slides in, the old one is the previous peek, and its title is on screen.
-    const left = page.getByTestId('peek-prev').locator('.help-title');
-    await expect(left).toHaveText(title);
-    // The text itself, not its box: the end of the title is on screen.
-    const textEnd = await left.evaluate((el) => {
+    // The old check slides out whole, itself, while the next one comes in from the edge: the text itself, not its
+    // box, is on screen.
+    expect(await sliding(page)).toBe(true);
+    const textEnd = await page.getByTestId('pane-ULT').evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
       return range.getBoundingClientRect().right;
     });
     expect(textEnd).toBeGreaterThan(8);
+    // Landed, the old check is the previous one, waiting past the edge; no copy of it was made.
+    await expect(at(page)).toHaveText(/ 2 \/ \d+$/);
+    await expect(page.getByTestId('peek-prev').locator('.help-title')).toHaveText(title);
+    await expect(page.locator('.leaving-slot')).toHaveCount(0);
   });
 
   test('j31: Previous and Next use the same slide, timed by the tC4 tokens', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await open(page, context);
     const rest = await helpX(page);
+    // The check on screen moves away, the way a finger would move it.
     await page.getByRole('button', { name: /^Next/ }).click();
-    expect(await helpX(page)).toBeGreaterThan(rest);
+    await expect.poll(() => helpX(page)).toBeLessThan(rest);
     const timing = await page.getByTestId('help').evaluate((el) => {
       const s = getComputedStyle(el.parentElement!);
       return [s.transitionProperty, s.transitionDuration, s.transitionTimingFunction];
@@ -208,7 +259,7 @@ test.describe('with motion', () => {
     expect(timing).toEqual(['transform', '0.24s', 'cubic-bezier(0.2, 0, 0.2, 1)']);
     await expect.poll(() => helpX(page)).toBe(rest);
     await page.getByRole('button', { name: /Previous/ }).click();
-    expect(await helpX(page)).toBeLessThan(rest);
+    await expect.poll(() => helpX(page)).toBeGreaterThan(rest);
     await expect(at(page)).toHaveText(/ 1 \/ \d+$/);
     await expect.poll(() => helpX(page)).toBe(rest);
   });
@@ -218,11 +269,14 @@ test.describe('with motion', () => {
     await open(page, context);
     await swipe(page, 0.8, 0.2);
     expect(await sliding(page)).toBe(true);
+    // The first slide lands at once, and the second one runs on from there.
     await swipe(page, 0.8, 0.2);
-    await expect(at(page)).toHaveText(/ 3 \/ \d+$/);
     expect(await sliding(page)).toBe(true);
+    await expect(at(page)).toHaveText(/ 3 \/ \d+$/);
+    // A tap on Next while a slide runs lands it, then goes one further.
+    await swipe(page, 0.8, 0.2);
     await page.getByRole('button', { name: /^Next/ }).click();
-    await expect(at(page)).toHaveText(/ 4 \/ \d+$/);
+    await expect(at(page)).toHaveText(/ 5 \/ \d+$/);
   });
 });
 
