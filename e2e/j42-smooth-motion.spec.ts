@@ -247,6 +247,68 @@ test.describe('with motion', () => {
     }
   });
 
+  /** Opens the first check not decided yet on the journaled project. */
+  const openDecidable = async (page: Page, context: BrowserContext) => {
+    await placeJournaledProject(PROJECT);
+    await openProject(page, context, 'sample_burrito');
+    await page.getByRole('button', { name: 'Titus Words' }).click();
+    await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
+    await expect(page.getByTestId('help')).toBeVisible();
+    await settle(page);
+  };
+  /** How dark the layer over a button is shown. */
+  const layer = (button: ReturnType<Page['locator']>) => button.evaluate((el) => Number(getComputedStyle(el, '::after').opacity));
+
+  test.describe('with a mouse', () => {
+    test.use({ isMobile: false, hasTouch: false });
+
+    test('j42: the main buttons darken a little under the pointer, and a little more while pressed, through opacity alone', async ({ page, context }) => {
+      test.skip(!(await rigUp()), NEEDS_RIG);
+      await openDecidable(page, context);
+      for (const button of [page.getByRole('button', { name: 'Valid', exact: true }), page.getByRole('button', { name: 'Invalid', exact: true })]) {
+        const fill = await button.evaluate((el) => getComputedStyle(el).backgroundColor);
+        expect(await layer(button)).toBe(0);
+        await watchTransitions(page);
+        await button.hover();
+        await expect.poll(() => layer(button)).toBeGreaterThan(0);
+        const hovered = await layer(button);
+        expect(await transitions(page)).toContainEqual([await button.evaluate((el) => el.className), '::after', 'opacity']);
+        await page.mouse.down();
+        await expect.poll(() => layer(button)).toBeGreaterThan(hovered);
+        // The button's own fill does not change: the layer over it does.
+        expect(await button.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(fill);
+        await page.mouse.move(0, 0);
+        await page.mouse.up();
+        await expect.poll(() => layer(button)).toBe(0);
+      }
+      // Deciding brings the large Next in, which darkens the same way.
+      await page.getByRole('button', { name: 'Valid', exact: true }).click();
+      const next = page.locator('.bottombar button.next');
+      await next.hover();
+      await expect.poll(() => layer(next)).toBeGreaterThan(0);
+      // So do the buttons on the other screens: the tool on the project's screen.
+      await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
+      await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
+      const tool = page.getByRole('button', { name: 'Titus Words' });
+      await tool.hover();
+      await expect.poll(() => layer(tool)).toBeGreaterThan(0);
+    });
+  });
+
+  test('j42: on the phone a button darkens only while pressed, and does not stay dark after the finger lifts', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    await openDecidable(page, context);
+    const invalid = page.getByRole('button', { name: 'Invalid', exact: true });
+    const box = (await invalid.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await layer(invalid)).toBe(0);
+    await page.mouse.down();
+    await expect.poll(() => layer(invalid)).toBeGreaterThan(0);
+    await page.mouse.up();
+    await expect(invalid).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => layer(invalid)).toBe(0);
+  });
+
   test('j42: the chapter sheet and a verse fade out as they close', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openList(page, context);

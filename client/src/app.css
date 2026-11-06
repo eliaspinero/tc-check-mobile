@@ -10,6 +10,17 @@ input { font-family: inherit; font-size: var(--fs-title-sm); min-height: var(--s
 button { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
 /* tC4's Inspire fill carries white text at 2.6:1; its 700 step keeps the Inspire hue and passes AA (5.6:1). */
 button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
+/* Under the pointer a button darkens a little, and a little more while pressed (a finger gets the press only): a dark
+   layer over its fill and under its text, shown by its opacity so it fades. Its own colours never change. */
+button { position: relative; isolation: isolate; }
+button::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--uw-black); opacity: 0; pointer-events: none; }
+@media (hover: hover) {
+  button:enabled:hover::after { opacity: 0.08; }
+  /* On the Ocean sheet the ground is already dark, so the layer needs more to show. */
+  .bottombar .decide button:enabled:hover::after { opacity: 0.22; }
+}
+button:enabled:active::after { opacity: 0.14; }
+.bottombar .decide button:enabled:active::after { opacity: 0.32; }
 .error { color: var(--text-invalid); font-size: var(--fs-ui-md); }
 .row { display: flex; justify-content: space-between; align-items: center; padding: var(--space-5) var(--space-1); border-bottom: var(--stroke-hair) solid var(--border); }
 .muted { color: var(--text-tertiary); font-size: var(--fs-ui-sm); }
@@ -63,7 +74,6 @@ button.tool { display: flex; flex-direction: column; align-items: center; gap: 2
 .verse summary { display: flex; justify-content: space-between; align-items: center; padding: var(--space-6) var(--space-1); cursor: pointer; font-weight: var(--fw-heavy); color: var(--text-heading); }
 .verse[open] summary { padding-bottom: var(--space-2); }
 .check-row { width: 100%; border: none; border-radius: var(--radius-md); background: transparent; text-align: left; font-weight: var(--fw-regular); padding: var(--space-4) var(--space-5) var(--space-4) var(--space-7); }
-.check-row:active { background: var(--surface-muted); }
 .check-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .row-note { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .done-mark { color: var(--text-valid); }
@@ -127,7 +137,6 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .bottombar .decide .invalid .mark { background: var(--tc-invalid-on-dark); }
 /* Neither is filled until it is the check's decision; the other one dims, and can still be tapped to change it. The
    fill is a layer over the button's background and border, under its text, shown by its opacity so it fades in. */
-.bottombar .decide button { position: relative; isolation: isolate; }
 .bottombar .decide button::before { content: ''; position: absolute; inset: calc(-1 * var(--stroke)); z-index: -1; border-radius: inherit; opacity: 0; }
 .bottombar .decide .valid::before { background: var(--tc-valid-strong); }
 .bottombar .decide .invalid::before { background: var(--tc-invalid); }
@@ -200,6 +209,7 @@ button:disabled { opacity: 0.45; }
   .peek .help-more { transition: none; }
   .bottombar .progress span { transition: transform var(--dur-panel) var(--ease-standard); }
   .bottombar .decide button { transition: opacity var(--dur-hover) var(--ease-standard); }
+  button::after { transition: opacity var(--dur-hover) var(--ease-standard); }
   .bottombar .decide button::before, .bottombar::before, .bottombar::after { transition: opacity var(--dur-panel) var(--ease-standard); }
   /* Closing fades out in half the time opening takes; the element stays drawn until the fade ends (allow-discrete). */
   .sheet-backdrop { transition: opacity calc(var(--dur-panel) / 2) var(--ease-standard), display calc(var(--dur-panel) / 2) allow-discrete; }
