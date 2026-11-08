@@ -47,6 +47,7 @@ export const en = {
   bookToolLoading: '{name}, loading',
 
   sync: 'Sync',
+  syncAfterDeciding: 'Sync is off for this project until the app can send your decisions to Door43, in its next update. They are saved on this phone.',
   loadingChecks: 'Loading the checks…',
   syncing: 'Syncing…',
   progress: '{decided} of {total} checked',

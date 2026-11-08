@@ -23,14 +23,21 @@ async fn main() -> Result<(), rocket::Error> {
     // pankosmia-web finds the home folder with the `home` crate: HOME, or USERPROFILE on Windows.
     env::set_var("HOME", &state);
     env::set_var("USERPROFILE", &state);
-    let working_dir = Path::new(&state).join("work").to_str().expect("utf-8 path").to_string();
+    let working_dir = Path::new(&state)
+        .join("work")
+        .to_str()
+        .expect("utf-8 path")
+        .to_string();
     if env::var("ROCKET_PORT").is_err() {
         env::set_var("ROCKET_PORT", "19980");
     }
     if env::var("ROCKET_ADDRESS").is_err() {
         env::set_var("ROCKET_ADDRESS", "127.0.0.1");
     }
-    let resources = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shell/src-tauri/pankosmia_resources/lib/");
+    let resources = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../shell/src-tauri/pankosmia_resources/lib/"
+    );
     let conf = json!({
         "working_dir": working_dir,
         "webfont_path": format!("{}webfonts", resources),
@@ -39,7 +46,13 @@ async fn main() -> Result<(), rocket::Error> {
         "app_resources_path": resources,
     });
     // As the shell does: the store's application data beside Pankosmia's repositories.
-    let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos")).expect("the tc store starts");
-    tc::mount(limits::with_upload_limits(pankosmia_web::rocket(conf)), projects).launch().await?;
+    let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos"))
+        .expect("the tc store starts");
+    tc::mount(
+        limits::with_upload_limits(pankosmia_web::rocket(conf)),
+        projects,
+    )
+    .launch()
+    .await?;
     Ok(())
 }

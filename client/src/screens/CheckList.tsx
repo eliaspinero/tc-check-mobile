@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
+import { hasLocalWork } from '../session/decide';
 import { loadSession, type Session } from '../session/loadSession';
 import { t } from '../i18n';
 import type { Strings } from '../i18n/en';
@@ -59,9 +60,15 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   useEffect(load, [load]);
 
   // Sync brings Door43 main into this copy and reloads the list; it pushes nothing yet (the second slice of #48).
+  // Once this phone has decided in the project, a pull would merge its commits with Door43's and break the
+  // decision files, so Sync waits for that slice.
   const sync = async () => {
     setStatus({ state: 'syncing' });
     try {
+      if (await hasLocalWork(repoPath, source)) {
+        setStatus({ state: 'failed', message: t('syncAfterDeciding') });
+        return;
+      }
       await source.enableNet();
       await source.pull(repoPath);
       load();

@@ -168,12 +168,12 @@ fn a_project_of_the_old_format_is_refused_and_left_as_it_was() {
 
 #[test]
 fn a_clone_without_the_local_state_opens_and_takes_a_decision() {
-    // What a Pankosmia clone of a Door43 repository in this format holds: every file but `.tc/`.
+    // What a Pankosmia clone of a Door43 repository in this format holds: every file but `.tc/`,
+    // as seed-tc leaves it.
     let root = temp("clone");
     let repos = root.join("repos");
     seeded(&repos, "seeded");
     copy_dir(&repos.join("seeded"), &repos.join("cloned"));
-    std::fs::remove_dir_all(repos.join("cloned/.tc")).expect(".tc removed");
     let projects = Projects::start(&root.join("app"), repos.clone()).expect("the store starts");
     projects
         .decide(Path::new("cloned"), &decide_body(1, "valid", json!(false)))
@@ -195,4 +195,52 @@ fn copy_dir(from: &Path, to: &Path) {
             std::fs::copy(entry.path(), &target).expect("a copy");
         }
     }
+}
+
+fn decide_at(verse: &str) -> Decide {
+    let body = json!({
+        "tool": "translationNotes",
+        "contextId": {
+            "checkId": "zz01", "reference": { "bookId": "tit", "chapter": 1, "verse": verse },
+            "tool": "translationNotes", "groupId": "figs-metaphor", "quote": "", "occurrence": 1
+        },
+        "category": "figures",
+        "resource": { "repoPath": "git.door43.org/es-419_gl/es-419_tn", "sha": "c2d9547ec95e40c2ba085c597b127c94733feb8a" },
+        "status": "valid",
+        "selections": false,
+        "nothingToSelect": true
+    });
+    serde_json::from_value(body).expect("a decide body")
+}
+
+#[test]
+fn a_check_on_a_chapter_front_a_lettered_verse_or_a_verse_list_is_recorded() {
+    // tN and tW rows such as PSA 3:front, a verse with a letter, or a list of verses
+    // (tC4 `RefPart`, crates/tc-journal/src/keys.rs).
+    let root = temp("refs");
+    let repos = root.join("repos");
+    seeded(&repos, "sample_tc");
+    let projects = Projects::start(&root.join("app"), repos.clone()).expect("the store starts");
+    for verse in ["front", "1a", "1,3", "2-3"] {
+        projects
+            .decide(Path::new("sample_tc"), &decide_at(verse))
+            .unwrap_or_else(|e| panic!("1:{verse}: {e}"));
+    }
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn local_work_is_what_this_phone_decided_and_has_not_sent() {
+    let root = temp("local");
+    let repos = root.join("repos");
+    seeded(&repos, "seeded");
+    // As a Door43 clone, the seed holds no `.tc/`: nothing of this phone's yet.
+    copy_dir(&repos.join("seeded"), &repos.join("cloned"));
+    let projects = Projects::start(&root.join("app"), repos.clone()).expect("the store starts");
+    assert!(!projects.has_local_work(Path::new("cloned")));
+    projects
+        .decide(Path::new("cloned"), &decide_body(1, "valid", json!(false)))
+        .expect("the decision is recorded");
+    assert!(projects.has_local_work(Path::new("cloned")));
+    std::fs::remove_dir_all(&root).ok();
 }

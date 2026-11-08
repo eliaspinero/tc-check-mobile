@@ -28,7 +28,8 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
   animated property other than `transform`/`opacity` (`display`, `content-visibility`, `overlay` and `visibility` only with
   `allow-discrete`; `grid-template-rows` only in the help), a typed duration or easing, and an animation library.
 - A decision is recorded only by the Rust tC4's store in the shell (`shell/src-tauri/src/tc.rs`,
-  through `ProjectSource.recordDecision`). The client has no other way to write a project file.
+  through `ProjectSource.recordDecision`), the client's one write to a project's files besides
+  Pankosmia's clone and pull.
 
 ## Tests
 

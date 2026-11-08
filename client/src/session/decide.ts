@@ -15,8 +15,12 @@ export interface DecideInput {
   pin: ResourcePin;
 }
 
-export const decide = ({ repoPath, tool, item, patch, pin }: DecideInput, source: ProjectSource): Promise<void> =>
-  source.recordDecision(repoPath, {
+// Decisions sent and not answered yet, by project: a checker can tap Valid, go Back and tap Sync before the first
+// has reached the shell.
+const inFlight = new Map<string, Set<Promise<void>>>();
+
+export const decide = ({ repoPath, tool, item, patch, pin }: DecideInput, source: ProjectSource): Promise<void> => {
+  const sent = source.recordDecision(repoPath, {
     tool,
     contextId: item.contextId,
     category: typeof item.category === 'string' ? item.category : '',
@@ -25,3 +29,16 @@ export const decide = ({ repoPath, tool, item, patch, pin }: DecideInput, source
     selections: patch.selections,
     nothingToSelect: patch.nothingToSelect,
   });
+  const pending = inFlight.get(repoPath) ?? new Set<Promise<void>>();
+  inFlight.set(repoPath, pending);
+  pending.add(sent);
+  const done = () => void pending.delete(sent);
+  sent.then(done, done);
+  return sent;
+};
+
+/** True when this phone has decisions of its own in the project, counting the ones still on their way (#48 review). */
+export const hasLocalWork = async (repoPath: string, source: ProjectSource): Promise<boolean> => {
+  await Promise.allSettled([...(inFlight.get(repoPath) ?? [])]);
+  return source.hasLocalWork(repoPath);
+};

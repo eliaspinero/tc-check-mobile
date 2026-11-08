@@ -32,6 +32,9 @@ export interface ProjectSource {
    * packs, then the decision file written again from them. The only write to a project: nothing else in the client
    * writes a project file. A project not in that format refuses (409). */
   recordDecision(repoPath: string, decision: DecisionToRecord): Promise<void>;
+  /** True when this phone has recorded decisions in the project, which `pull` must not merge until the phone can
+   * sync them (#48, slice 48b). Waits for a decision that is still being recorded. */
+  hasLocalWork(repoPath: string): Promise<boolean>;
   readMetadata(repoPath: string): Promise<Record<string, unknown>>;
   /** `ingredients/checking/resources.json`, or null when the repo is not a tC4 project. */
   readResources(repoPath: string): Promise<ResourcesFile | null>;

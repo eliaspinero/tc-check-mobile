@@ -58,6 +58,7 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     readText: (repoPath, ipath) => text(`/burrito/ingredient/raw/${enc(repoPath)}?ipath=${enc(ipath)}`),
     listPaths: async (repoPath) => JSON.parse(await text(`/burrito/paths/${enc(repoPath)}`)) as string[],
     // The shell's own route (shell/src-tauri/src/tc.rs), not Pankosmia's: it answers an empty 200.
+    hasLocalWork: async (repoPath) => (JSON.parse(await text(`/tc/local-work/${enc(repoPath)}`)) as { localWork: boolean }).localWork,
     recordDecision: async (repoPath, decision) => {
       await text(`/tc/decide/${enc(repoPath)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(decision) });
     },

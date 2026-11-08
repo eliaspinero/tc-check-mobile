@@ -2,7 +2,8 @@
 // translationCore 4's format (#48), as tC4's own state seed makes it (STORAGE.md §13.2,
 // `tc_app::backend::seed`). The folder gets the files tC4's scenario writer gives a seeded project
 // (`WrittenProject::files` in crates/tc-app/src/backend/scenario_store.rs at c0d6e0e8), then one open
-// and close by a store of its own, which materializes every derived file and seals the packs.
+// and close by a store of its own, which materializes every derived file, seals the packs and commits;
+// its local state (`.tc/`) is then removed, as a Door43 clone holds none.
 // The journeys' sample project is made with it (dev-env/seed/seed.mjs); never the phone.
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -89,6 +90,8 @@ fn main() {
         .open(&dst, &OpenOptions::default())
         .unwrap_or_else(|e| panic!("open {}: {e}", dst.display()));
     handle.close().expect("the first close checkpoints");
+    // A Door43 clone holds no `.tc/` (it is git-ignored): the folder is left as one.
+    std::fs::remove_dir_all(dst.join(".tc")).expect("the seed's local state is removed");
     let _ = std::fs::remove_dir_all(&app_data);
     println!("seeded {} from {}", dst.display(), src.display());
 }

@@ -49,6 +49,7 @@ export const es: Strings = {
   bookToolLoading: '{name}, cargando',
 
   sync: 'Sincronizar',
+  syncAfterDeciding: 'Sincronizar está desactivado en este proyecto hasta que la app pueda enviar tus decisiones a Door43, en su próxima actualización. Están guardadas en este teléfono.',
   loadingChecks: 'Cargando las revisiones…',
   syncing: 'Sincronizando…',
   progress: '{decided} de {total} revisados',

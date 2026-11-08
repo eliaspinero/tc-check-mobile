@@ -8,8 +8,10 @@
 //! fold, and commits. The client reads that file back, so what it shows is the fold's projection.
 //!
 //! Nothing stays open between two requests: no lock is held while Pankosmia pulls, and two
-//! decisions never share a half-finished state. The shell and the journeys' rig both mount this
-//! file (`dev-env/rig/src/main.rs`), so the journeys run this code.
+//! decisions never share a half-finished state. `GET /api/tc/local-work/<repo path>` says
+//! whether the phone has decisions of its own there, which Pankosmia's pull must not merge.
+//! The shell and the journeys' rig both mount this file (`dev-env/rig/src/main.rs`), so the
+//! journeys run this code.
 
 use rocket::http::Status;
 use rocket::serde::json::Json;
@@ -112,6 +114,19 @@ impl Projects {
             .map_err(|e| DecideError::Store(e.to_string()));
         saved?;
         closed
+    }
+
+    /// Whether this phone has recorded decisions in the project at `repo` (its `.tc/`, which
+    /// the first decision creates and a Door43 clone never holds, as it is git-ignored). Until
+    /// the phone can sync them (#48, slice 48b), Pankosmia's pull would merge its commits with
+    /// Door43's and leave conflict markers in the decision files. It waits for a decision that
+    /// is being recorded, so a Sync tapped right after one sees it.
+    pub fn has_local_work(&self, repo: &Path) -> bool {
+        let _one = self
+            .one_at_a_time
+            .lock()
+            .expect("the decision lock is poisoned");
+        self.repos.join(repo).join(".tc").is_dir()
     }
 }
 
@@ -221,8 +236,10 @@ impl Decide {
         })
     }
 
-    /// The check's key and the key of the verse its words are taken from: the first verse of a
-    /// span such as `9-10`, which holds the span's text (STORAGE.md §0 item 3).
+    /// The check's key and the key of the text its words are taken from: the chapter's front
+    /// for `front`, else the first verse a part names (`9` of `9-10`, which holds the span's
+    /// text, STORAGE.md §0 item 3; `1` of `1a` or `1,3`). The store reads no text for a part
+    /// that is not one verse or span, and records the decision against the empty text (§7.7).
     fn keys(&self) -> Result<(CheckKey, RecordKey), DecideError> {
         let tool = ToolId::parse(&self.tool)
             .ok_or_else(|| bad(format!("unknown tool {:?}", self.tool)))?;
@@ -263,13 +280,22 @@ impl Decide {
             },
             occurrence,
         };
-        let first = |s: &str| s.split('-').next().and_then(|n| n.parse::<u16>().ok());
-        let (Some(c), Some(v)) = (first(&chapter), first(&verse)) else {
-            return Err(bad(format!("{chapter}:{verse} is not a verse")));
+        let leading = |s: &str| {
+            let digits: String = s.chars().take_while(char::is_ascii_digit).collect();
+            digits.parse::<u16>().ok()
         };
-        let chapter_no = ChapterNo::new(c).ok_or_else(|| bad("chapter"))?;
-        let verse_no = VerseNo::new(v).ok_or_else(|| bad("verse"))?;
-        Ok((key, RecordKey::Verse(book, chapter_no, verse_no)))
+        let chapter_no = leading(&chapter)
+            .and_then(ChapterNo::new)
+            .ok_or_else(|| bad(format!("{chapter}:{verse} names no chapter")))?;
+        let text = if verse == "front" {
+            RecordKey::ChapterFront(book, chapter_no)
+        } else {
+            let verse_no = leading(&verse)
+                .and_then(VerseNo::new)
+                .ok_or_else(|| bad(format!("{chapter}:{verse} names no verse")))?;
+            RecordKey::Verse(book, chapter_no, verse_no)
+        };
+        Ok((key, text))
     }
 }
 
@@ -287,9 +313,23 @@ async fn decide(
         .map_err(|e| (e.status(), e.to_string()))
 }
 
+/// `{"localWork": true}` when this phone has decisions of its own in the project (see
+/// [`Projects::has_local_work`]).
+#[rocket::get("/local-work/<repo..>")]
+async fn local_work(
+    repo: PathBuf,
+    projects: &State<Arc<Projects>>,
+) -> Result<Json<rocket::serde::json::Value>, (Status, String)> {
+    let projects = Arc::clone(projects);
+    let local = rocket::tokio::task::spawn_blocking(move || projects.has_local_work(&repo))
+        .await
+        .map_err(|e| (Status::InternalServerError, e.to_string()))?;
+    Ok(Json(rocket::serde::json::json!({ "localWork": local })))
+}
+
 /// Mounts the routes at `/api/tc`, beside Pankosmia's `/api` routes.
 pub fn mount(rocket: Rocket<Build>, projects: Projects) -> Rocket<Build> {
     rocket
         .manage(Arc::new(projects))
-        .mount("/api/tc", rocket::routes![decide])
+        .mount("/api/tc", rocket::routes![decide, local_work])
 }

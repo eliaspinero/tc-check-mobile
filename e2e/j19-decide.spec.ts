@@ -207,3 +207,39 @@ test("j19: a project not in the new translationCore's format says so and offers 
   await expect(page.getByRole('button', { name: 'Valid', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Invalid' })).toHaveCount(0);
 });
+
+// #48 review: until the phone can sync its decisions (slice 48b), Pankosmia's pull would merge the phone's commits
+// with Door43's and leave conflict markers in the decision files. Sync says so and pulls nothing, also when it is
+// tapped while the decision is still being recorded.
+test('j19: Sync after a decision on this phone pulls nothing and says why, and the list stays', async ({ page, context }) => {
+  await openUndecided(page, context);
+  const pulls: string[] = [];
+  await page.route('**/api/git/pull-repo/**', (route) => {
+    pulls.push(route.request().url());
+    return route.continue();
+  });
+  // A slow phone: the decision is still being recorded when the checker goes back and taps Sync.
+  await page.route('**/api/tc/decide/**', async (route) => {
+    await new Promise((r) => setTimeout(r, 1000));
+    await route.continue();
+  });
+  await page.getByRole('button', { name: 'Valid', exact: true }).click();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Sync' }).click();
+  await expect(page.getByRole('alert')).toContainText('Sync is off for this project');
+  expect(pulls).toEqual([]);
+  await expect(page.getByTestId('progress')).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await expect(page.getByTestId('progress')).toBeVisible();
+});
+
+test('j19: Sync still pulls a project in the new format where this phone has decided nothing', async ({ page, context }) => {
+  await openProject(page, context, 'sample_burrito');
+  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await expect(page.getByTestId('progress')).toBeVisible();
+  const pull = page.waitForRequest('**/api/git/pull-repo/**');
+  await page.getByRole('button', { name: 'Sync' }).click();
+  await pull;
+  await expect(page.getByRole('alert')).not.toContainText('Sync is off for this project');
+});
