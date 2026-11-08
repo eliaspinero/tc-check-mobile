@@ -44,9 +44,22 @@ export const keepNow = <T>(key: string, value: T): void => {
   entries.set(key, { promise: Promise.resolve(value), value: { got: value } });
 };
 
-/** Drops every entry of a project, so its screens read it again: after a Sync, or a resource installed. */
+/** Keeps a read that has started for `key` in place of what was there, before it lands: a screen that asks
+ * meanwhile (a list opened by Back right after a decision) gets the new answer, not the old one. */
+export const keepRead = <T>(key: string, read: Promise<T>): void => {
+  entries.delete(key);
+  void keep(key, () => read).catch(() => undefined);
+};
+
+/** Drops every entry of a project, so its screens read it again: after a Sync. */
 export const forgetProject = (repoPath: string): void => {
   for (const key of [...entries.keys()]) if (key.split('|')[1] === repoPath) entries.delete(key);
+};
+
+/** Drops what every project derived from the resources on this device, after one was installed: any project may
+ * pin it. Door43's list and the resources' own files stay. */
+export const forgetAfterInstall = (): void => {
+  for (const key of [...entries.keys()]) if (!key.startsWith('projects|') && !key.startsWith('text|')) entries.delete(key);
 };
 
 /** The keys, one place for each kind; the project's path is always the second part. */

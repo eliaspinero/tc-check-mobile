@@ -4,7 +4,7 @@ import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
 import { decide } from '../session/decide';
 import type { CheckContext } from '../session/loadCheckContext';
-import { contextOf, keys, kept, resourceText } from '../session/kept';
+import { contextOf, keepRead, keys, kept, resourceText } from '../session/kept';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import { useSwipe } from './useSwipe';
@@ -239,8 +239,10 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
     if (!session.pin) return;
     setStatus({ state: 'saving' });
     try {
-      await decide({ repoPath, tool, item, patch, pin: session.pin }, source);
-      onDecided(await loadSession(repoPath, tool, book, source, engine));
+      // The session read after the decision is kept before it lands, so a list opened by Back meanwhile shows it.
+      const fresh = decide({ repoPath, tool, item, patch, pin: session.pin }, source).then(() => loadSession(repoPath, tool, book, source, engine));
+      keepRead(keys.session(repoPath, tool, book), fresh);
+      onDecided(await fresh);
       setTapped(null);
       setStatus(IDLE);
     } catch (e) {

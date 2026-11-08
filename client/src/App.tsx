@@ -15,7 +15,7 @@ import { pankosmiaSource } from './project/pankosmiaSource';
 import { tsEngine } from './engine/tsEngine';
 import type { Tool } from './engine/CheckingEngine';
 import type { Session } from './session/loadSession';
-import { forgetProject, keepNow, keys } from './session/kept';
+import { forgetAfterInstall, keepNow, keys } from './session/kept';
 import { t } from './i18n';
 
 type Screen =
@@ -106,9 +106,9 @@ export default function App() {
           key={screen.repoPath}
           repoPath={screen.repoPath}
           source={source}
-          // Installed resources change what the project's screens read.
+          // Installed resources change what every project that pins them reads.
           onReady={() => {
-            forgetProject(screen.repoPath);
+            forgetAfterInstall();
             go({ name: 'books', repoPath: screen.repoPath });
           }}
           onBack={() => go({ name: 'projects' }, true)}

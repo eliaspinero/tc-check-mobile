@@ -62,9 +62,11 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
+    // Door43's answer replaces the list, but not under a tap: while a project opens, it waits for the opening to end.
     const list = (got: Door43Repo[]) => {
       keepNow(listKey, got);
-      setRepos(got);
+      if (openingNow.current) waiting.current = got;
+      else setRepos(got);
     };
     api.listRepos(session).then(list, async (e: unknown) => {
       setStatus({ state: 'failed', message: t('offlineProjects', { error: door43ErrorText(e) }) });
@@ -82,11 +84,19 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
   }, [api, session, source, host, listKey]);
 
   // Opening clears the offline notice, as any earlier failure: what shows next is about this project.
+  const openingNow = useRef(false);
+  const waiting = useRef<Door43Repo[] | null>(null);
+  const opened = () => {
+    openingNow.current = false;
+    if (waiting.current) setRepos(waiting.current);
+    waiting.current = null;
+  };
   const open = async (repo: Door43Repo) => {
     // A project opened earlier in this run with every resource on the device opens again without reading anything.
     const known = kept<string>(keys.ready(`${host}/${repo.owner}/${repo.name}`));
     if (known) return onOpen(known, true);
     setStatus({ state: 'opening', key: keyOf(repo) });
+    openingNow.current = true;
     try {
       let repoPath = localPathOf(await source.listLocal(), host, repo);
       if (!repoPath) {
@@ -114,6 +124,8 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       setStatus(IDLE);
     } catch (e) {
       setStatus({ state: 'failed', message: (e as Error).message });
+    } finally {
+      opened();
     }
   };
   const opening = status.state === 'opening' ? status.key : null;
