@@ -87,15 +87,15 @@ function Help({ item, tool, ctx, article, open, onToggle, engine, still }: { ite
         <span data-testid={id('help-title')} className="help-title">{title}</span>
         <span className="chevron" aria-hidden="true">▾</span>
       </button>
-      {note && (
-        <p data-testid={id('help-refs')} className="tags">
-          {note.refs.join(' · ')}
-        </p>
-      )}
       {/* Always drawn on the check on screen, so opening can grow from nothing; closed, it is out of reach. A check at
           the screen's edge draws its text only while the help is open: a whole tW article twice more would slow the swipe. */}
       <div className="help-more" data-open={open || undefined} {...(!open && { inert: '' })}>
         <div>
+          {note && (
+            <p data-testid={id('help-refs')} className="tags">
+              {note.refs.join(' · ')}
+            </p>
+          )}
           {blocks.length > 0 && (open || !still) && (
             <div data-testid={id('help-body')} className="help-body">
               <Markdown blocks={blocks} />

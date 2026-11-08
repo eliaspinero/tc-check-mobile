@@ -36,6 +36,7 @@ test('j7 polish: tN rows and the tN help are titled by the ULT words, with the A
   await expect.poll(async () => (await labels(page)).filter((l) => TN_ID.test(l))).toEqual([]);
   await page.getByTestId('check-row').first().click();
   await expect(page.getByTestId('help-title')).toHaveText('for the faith');
+  await page.getByTestId('help').locator('.help-toggle').click();
   await expect(page.getByTestId('help-refs')).toHaveText('figs-abstractnouns');
 });
 
@@ -94,14 +95,15 @@ test('j7 polish: the target verse stays anchored right above the bar on a 375 ×
   expect(hit).toBe(true);
 });
 
-test('j7 polish: the help closes to its title and the small Academy tag, and its text is out of reach until it opens', async ({ page, context }) => {
+test('j7 polish: the help closes to its title, and its Academy tag and text are out of reach until it opens', async ({ page, context }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await openTitus(page, context, 'Notes');
   await page.getByTestId('check-row').first().click();
   await expect(page.getByTestId('help-title')).toBeVisible();
-  await expect(page.getByTestId('help-refs')).toBeVisible();
+  await expect(page.getByTestId('help-refs')).toBeHidden();
   await expect(page.getByTestId('help-body')).toBeHidden();
   await page.getByTestId('help').locator('.help-toggle').click();
+  await expect(page.getByTestId('help-refs')).toBeVisible();
   await expect(page.getByTestId('help-body')).toBeVisible();
   await expect(page.getByTestId('help-title')).toBeVisible();
 });

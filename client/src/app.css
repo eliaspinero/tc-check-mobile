@@ -105,7 +105,7 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .peek.prev { right: calc(100% + var(--peek-gap)); }
 .check { min-height: 100dvh; box-sizing: border-box; padding-bottom: var(--bar); }
 .help-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; border-radius: 0; background: transparent; padding: 0; text-align: left; font-weight: var(--fw-regular); }
-.help-body { margin-top: var(--space-2); line-height: var(--lh-body); }
+.help-body { margin-top: var(--space-2); font-size: var(--fs-body); line-height: var(--lh-body); }
 .help-body h3, .help-body h4 { font-size: var(--fs-body); font-weight: var(--fw-black); color: var(--text-heading); margin: var(--space-4) 0 var(--space-1); }
 .help-body p { margin: 0 0 var(--space-2); }
 .help-body ul { margin: 0 0 var(--space-2); padding-left: var(--space-8); }
