@@ -110,7 +110,7 @@ fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     // The Rust tC4's store, for the decisions (tc.rs): its application data beside Pankosmia's
     // repositories, which live in the home folder set above.
-    let projects = tc::Projects::start(&data_dir.join("tc"), data_dir.join("pankosmia_repos"))?;
+    let projects = tc::Projects::start(&data_dir.join("tc"), data_dir.join("pankosmia_repos"), None)?;
     let rocket = tc::mount(limits::with_upload_limits(pankosmia_web::rocket(conf)), projects).attach(RemoveFrameOptions);
 
     let rocket_fut = rocket.launch();

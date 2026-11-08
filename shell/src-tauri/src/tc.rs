@@ -7,11 +7,14 @@
 //! under `ingredients/tc/changes/`, rewrites `ingredients/checking/<tool>/<BOOK>.json` from the
 //! fold, and commits. The client reads that file back, so what it shows is the fold's projection.
 //!
-//! Nothing stays open between two requests: no lock is held while Pankosmia pulls, and two
-//! decisions never share a half-finished state. `GET /api/tc/local-work/<repo path>` says
-//! whether the phone has decisions of its own there, which Pankosmia's pull must not merge.
-//! The shell and the journeys' rig both mount this file (`dev-env/rig/src/main.rs`), so the
-//! journeys run this code.
+//! `POST /api/tc/sync/<repo path>` syncs such a project with Door43 as the Rust tC4 does
+//! (STORAGE.md §9, `tc_sync::sync`): it seals, fetches, takes in the teammates' packs, commits
+//! the merge and pushes. Pankosmia's pull never runs on such a project: it would merge the two
+//! histories with git and leave conflict markers in the derived files.
+//!
+//! Nothing stays open between two requests, and one request runs at a time: a second open of a
+//! folder that is still open would be refused (`.tc/lock`). The shell and the journeys' rig both
+//! mount this file (`dev-env/rig/src/main.rs`), so the journeys run this code.
 
 use rocket::http::Status;
 use rocket::serde::json::Json;
@@ -20,29 +23,43 @@ use rocket::{Build, Rocket, State};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tc_door43::{Door43Client, InternetSwitch, RepoRef, ServerUrl, Session, Token};
 use tc_journal::command::{Command, DecisionBasis, DecisionChange, DecisionEdit};
 use tc_journal::keys::{CheckId, CheckKey, CheckTarget, RefPart, ToolId};
 use tc_journal::record::{ResourceRef, Selection, UserStatus};
 use tc_journal::{BookId, ChapterNo, GitOid, JsonMap, RecordKey, VerseNo};
-use tc_store::{Mode, OpenError, OpenOptions, StdFs, StdPlatform, Store, StoreConfig, SystemClock};
+use tc_store::{
+    Mode, OpenError, OpenOptions, ProjectHandle, StdFs, StdPlatform, Store, StoreConfig,
+    SystemClock,
+};
+use tc_sync::machine::{Ended, Received};
 
 /// The projects of this installation and where Pankosmia keeps their folders.
 pub struct Projects {
     store: Store,
     repos: PathBuf,
-    /// One decision at a time: a second open of a folder that is still open would be refused
-    /// (`.tc/lock`), and a checker can tap Next and decide again before the first save is done.
+    /// The Door43 every project syncs with instead of `https://<host>`: the journeys' fake.
+    /// `None` on a phone.
+    door43: Option<ServerUrl>,
+    /// One request at a time: a second open of a folder that is still open would be refused
+    /// (`.tc/lock`), and a checker can tap Next and decide again, or tap Sync, before the first
+    /// save is done.
     one_at_a_time: Mutex<()>,
 }
 
 impl Projects {
     /// Starts the store with its application data in `app_data` (the installation secret and
     /// the device ledger, STORAGE.md §3.7), for the Pankosmia repositories under `repos`.
+    /// `door43` replaces every project's Door43 server, for the journeys; the shell gives none.
     ///
     /// # Errors
     ///
     /// When `app_data` cannot be created or read.
-    pub fn start(app_data: &Path, repos: PathBuf) -> Result<Self, tc_store::StoreError> {
+    pub fn start(
+        app_data: &Path,
+        repos: PathBuf,
+        door43: Option<ServerUrl>,
+    ) -> Result<Self, tc_store::StoreError> {
         let store = Store::start(StoreConfig {
             app_data: app_data.to_owned(),
             // The phone creates no project of its own; Pankosmia clones them.
@@ -57,6 +74,7 @@ impl Projects {
         Ok(Self {
             store,
             repos,
+            door43,
             one_at_a_time: Mutex::new(()),
         })
     }
@@ -76,19 +94,7 @@ impl Projects {
             .one_at_a_time
             .lock()
             .expect("the decision lock is poisoned");
-        let handle = self
-            .store
-            .open(&self.repos.join(repo), &OpenOptions::default())
-            .map_err(|e| match e {
-                OpenError::NotAProject => DecideError::NotTc,
-                other => DecideError::Store(other.to_string()),
-            })?;
-        if let Mode::ReadOnly(reason) = handle.facts().mode {
-            let _ = handle.close();
-            return Err(DecideError::Store(format!(
-                "the project is open read-only: {reason:?}"
-            )));
-        }
+        let handle = self.open(repo)?;
         // The screen showed the fold as it is now: the list was read from this fold's projection,
         // and nothing else writes the project while a decision is made (one at a time, above).
         let saved = (|| {
@@ -116,18 +122,144 @@ impl Projects {
         closed
     }
 
-    /// Whether this phone has recorded decisions in the project at `repo` (its `.tc/`, which
-    /// the first decision creates and a Door43 clone never holds, as it is git-ignored). Until
-    /// the phone can sync them (#48, slice 48b), Pankosmia's pull would merge its commits with
-    /// Door43's and leave conflict markers in the decision files. It waits for a decision that
-    /// is being recorded, so a Sync tapped right after one sees it.
-    pub fn has_local_work(&self, repo: &Path) -> bool {
+    /// Syncs the project at `repo` (`<host>/<owner>/<name>`) with its Door43 repository, as
+    /// `session`, and closes it again. A Pankosmia clone is connected first (`origin` and
+    /// `tc.branch`, STORAGE.md §9.6), on the branch it was cloned at. `runtime` runs the sync's
+    /// network calls; this call blocks until the sync ends.
+    ///
+    /// # Errors
+    ///
+    /// [`DecideError::NotTc`] for a folder that is not of the Rust tC4's format, and the store's
+    /// own refusal when the project cannot be opened or connected. A sync that runs and fails
+    /// is not an error: [`Synced::Failed`] says why, in tC4's own terms.
+    pub fn sync(
+        &self,
+        runtime: &rocket::tokio::runtime::Handle,
+        repo: &Path,
+        session: Session,
+    ) -> Result<Synced, DecideError> {
+        let (host, door43_repo) = door43_of(repo)?;
+        let server = match &self.door43 {
+            Some(server) => server.clone(),
+            None => format!("https://{host}")
+                .parse()
+                .map_err(|_| bad(format!("{host} is not a Door43 server")))?,
+        };
         let _one = self
             .one_at_a_time
             .lock()
             .expect("the decision lock is poisoned");
-        self.repos.join(repo).join(".tc").is_dir()
+        let handle = self.open(repo)?;
+        let synced = (|| {
+            if branch_of(&handle)?.is_none() {
+                let cloned_at = cloned_branch(&handle)?;
+                runtime
+                    .block_on(tc_sync::connect(&handle, &server, &door43_repo, &cloned_at))
+                    .map_err(|e| DecideError::Store(e.to_string()))?;
+            }
+            let internet = InternetSwitch::new();
+            internet.turn_on();
+            let client = Door43Client::new(server, internet)
+                .map_err(|e| DecideError::Store(e.to_string()))?;
+            let report = runtime.block_on(tc_sync::sync(
+                &handle,
+                &client,
+                Some(&session),
+                &tc_sync::Backoff::default(),
+            ));
+            Ok(match report.ended {
+                Ended::Synced {
+                    received,
+                    confirmed,
+                } => Synced::Done {
+                    received: received == Received::Integrated,
+                    confirmed,
+                },
+                Ended::Failed(failure) => Synced::Failed(
+                    rocket::serde::json::to_value(&failure)
+                        .map_err(|e| DecideError::Store(e.to_string()))?,
+                ),
+            })
+        })();
+        // Closing writes the decision files again from the fold, with what the sync took in.
+        let closed = handle
+            .close()
+            .map_err(|e| DecideError::Store(e.to_string()));
+        let synced = synced?;
+        closed?;
+        Ok(synced)
     }
+
+    /// Opens the project at `repo` for writing.
+    fn open(&self, repo: &Path) -> Result<ProjectHandle, DecideError> {
+        let handle = self
+            .store
+            .open(&self.repos.join(repo), &OpenOptions::default())
+            .map_err(|e| match e {
+                OpenError::NotAProject => DecideError::NotTc,
+                other => DecideError::Store(other.to_string()),
+            })?;
+        if let Mode::ReadOnly(reason) = handle.facts().mode {
+            let _ = handle.close();
+            return Err(DecideError::Store(format!(
+                "the project is open read-only: {reason:?}"
+            )));
+        }
+        Ok(handle)
+    }
+}
+
+/// How a sync ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Synced {
+    /// The project and Door43 hold each other's work. `received`: teammates' work came in.
+    /// `confirmed`: Door43's branch was read back at the pushed commit.
+    Done { received: bool, confirmed: bool },
+    /// tC4's `SyncFailure`, as its JSON (`{"type": "beforeIntake", "value": {"type": "offline"}}`).
+    Failed(rocket::serde::json::Value),
+}
+
+/// The Door43 host and repository of a Pankosmia repo path `<host>/<owner>/<name>`.
+fn door43_of(repo: &Path) -> Result<(String, RepoRef), DecideError> {
+    let parts: Vec<&str> = repo.iter().filter_map(|p| p.to_str()).collect();
+    let [host, owner, name] = parts.as_slice() else {
+        return Err(bad(format!(
+            "{} is not a Door43 repository",
+            repo.display()
+        )));
+    };
+    let door43_repo = format!("{owner}/{name}")
+        .parse()
+        .map_err(|_| bad(format!("{owner}/{name} is not a Door43 repository")))?;
+    Ok(((*host).to_owned(), door43_repo))
+}
+
+fn history(handle: &ProjectHandle) -> Result<git2::Repository, DecideError> {
+    let git_dir = handle
+        .facts()
+        .git_dir
+        .ok_or_else(|| DecideError::Store("the project has no git history".to_owned()))?;
+    git2::Repository::open(git_dir).map_err(|e| DecideError::Store(e.message().to_owned()))
+}
+
+/// The branch the project syncs (`tc.branch`), once it is connected.
+fn branch_of(handle: &ProjectHandle) -> Result<Option<String>, DecideError> {
+    let config = history(handle)?
+        .config()
+        .map_err(|e| DecideError::Store(e.message().to_owned()))?;
+    Ok(config.get_string("tc.branch").ok())
+}
+
+/// The branch Pankosmia cloned: Door43's default branch, checked out.
+fn cloned_branch(handle: &ProjectHandle) -> Result<String, DecideError> {
+    let history = history(handle)?;
+    let head = history
+        .head()
+        .map_err(|e| DecideError::Store(e.message().to_owned()))?;
+    head.shorthand()
+        .ok()
+        .map(str::to_owned)
+        .ok_or_else(|| DecideError::Store("the project is on no branch".to_owned()))
 }
 
 /// Why a decision was not recorded.
@@ -313,23 +445,53 @@ async fn decide(
         .map_err(|e| (e.status(), e.to_string()))
 }
 
-/// `{"localWork": true}` when this phone has decisions of its own in the project (see
-/// [`Projects::has_local_work`]).
-#[rocket::get("/local-work/<repo..>")]
-async fn local_work(
+/// Who syncs: the checker signed in on this phone (the client keeps the token, AGENTS.md).
+#[derive(Debug, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct SyncAs {
+    pub username: String,
+    pub token: String,
+}
+
+/// `{"synced": true, "received": …, "confirmed": …}`, or `{"synced": false, "failure": …}` with
+/// tC4's `SyncFailure`.
+#[rocket::post("/sync/<repo..>", data = "<body>")]
+async fn sync(
     repo: PathBuf,
+    body: Json<SyncAs>,
     projects: &State<Arc<Projects>>,
 ) -> Result<Json<rocket::serde::json::Value>, (Status, String)> {
+    let session = Session {
+        username: body
+            .username
+            .parse()
+            .map_err(|_| (Status::BadRequest, "username".to_owned()))?,
+        token: Token::new(body.token.clone())
+            .map_err(|_| (Status::BadRequest, "token".to_owned()))?,
+    };
     let projects = Arc::clone(projects);
-    let local = rocket::tokio::task::spawn_blocking(move || projects.has_local_work(&repo))
-        .await
-        .map_err(|e| (Status::InternalServerError, e.to_string()))?;
-    Ok(Json(rocket::serde::json::json!({ "localWork": local })))
+    let runtime = rocket::tokio::runtime::Handle::current();
+    let synced =
+        rocket::tokio::task::spawn_blocking(move || projects.sync(&runtime, &repo, session))
+            .await
+            .map_err(|e| (Status::InternalServerError, e.to_string()))?
+            .map_err(|e| (e.status(), e.to_string()))?;
+    Ok(Json(match synced {
+        Synced::Done {
+            received,
+            confirmed,
+        } => {
+            rocket::serde::json::json!({ "synced": true, "received": received, "confirmed": confirmed })
+        }
+        Synced::Failed(failure) => {
+            rocket::serde::json::json!({ "synced": false, "failure": failure })
+        }
+    }))
 }
 
 /// Mounts the routes at `/api/tc`, beside Pankosmia's `/api` routes.
 pub fn mount(rocket: Rocket<Build>, projects: Projects) -> Rocket<Build> {
     rocket
         .manage(Arc::new(projects))
-        .mount("/api/tc", rocket::routes![decide, local_work])
+        .mount("/api/tc", rocket::routes![decide, sync])
 }

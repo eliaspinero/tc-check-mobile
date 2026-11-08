@@ -3,7 +3,7 @@
 // from the packs; the list follows at once; nothing is lost when the app closes right after; a project not in that
 // format offers no decision.
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
-import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, readIngredient, rigUp } from './helpers/rig';
+import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, readIngredient, rigUp, writeIngredient } from './helpers/rig';
 import { openProject } from './helpers/session';
 import { changesOf, placeTcProject } from './helpers/journal';
 
@@ -208,38 +208,59 @@ test("j19: a project not in the new translationCore's format says so and offers 
   await expect(page.getByRole('button', { name: 'Invalid' })).toHaveCount(0);
 });
 
-// #48 review: until the phone can sync its decisions (slice 48b), Pankosmia's pull would merge the phone's commits
-// with Door43's and leave conflict markers in the decision files. Sync says so and pulls nothing, also when it is
-// tapped while the decision is still being recorded.
-test('j19: Sync after a decision on this phone pulls nothing and says why, and the list stays', async ({ page, context }) => {
+// #48: a project in the Rust tC4's format syncs as the Rust tC4 does (the shell's tc.rs, proven against tC4's fake
+// Door43 in dev-env/rig/tests/tc.rs), never through Pankosmia's pull, which would merge the two histories with git.
+// The journeys answer the sync route themselves, so no journey reaches a real Door43.
+test('j19: Sync on a project in the new format syncs through the Rust tC4 after the decision on its way, and never pulls', async ({ page, context }) => {
   await openUndecided(page, context);
-  const pulls: string[] = [];
+  const calls: string[] = [];
   await page.route('**/api/git/pull-repo/**', (route) => {
-    pulls.push(route.request().url());
+    calls.push('pull');
     return route.continue();
   });
   // A slow phone: the decision is still being recorded when the checker goes back and taps Sync.
   await page.route('**/api/tc/decide/**', async (route) => {
     await new Promise((r) => setTimeout(r, 1000));
     await route.continue();
+    calls.push('decided');
+  });
+  let sentAs: unknown = null;
+  await page.route('**/api/tc/sync/**', (route) => {
+    calls.push('sync');
+    sentAs = route.request().postDataJSON();
+    return route.fulfill({ json: { synced: true, received: false, confirmed: true } });
   });
   await page.getByRole('button', { name: 'Valid', exact: true }).click();
   await page.getByRole('button', { name: 'Back' }).click();
   await page.getByRole('button', { name: 'Sync' }).click();
-  await expect(page.getByRole('alert')).toContainText('Sync is off for this project');
-  expect(pulls).toEqual([]);
-  await expect(page.getByTestId('progress')).toBeVisible();
-  await page.getByRole('button', { name: 'Back' }).click();
-  await page.getByRole('button', { name: 'Titus Words' }).click();
+  await expect.poll(() => calls).toEqual(['decided', 'sync']);
+  await expect(page.getByRole('button', { name: 'Sync' })).toBeEnabled();
+  expect(sentAs).toMatchObject({ username: expect.any(String), token: expect.any(String) });
+  await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByTestId('progress')).toBeVisible();
 });
 
-test('j19: Sync still pulls a project in the new format where this phone has decided nothing', async ({ page, context }) => {
+test("j19: a sync that stops says why in the checker's words, and says when the teammates' work that came in is kept", async ({ page, context }) => {
   await openProject(page, context, 'sample_burrito');
   await page.getByRole('button', { name: 'Titus Words' }).click();
   await expect(page.getByTestId('progress')).toBeVisible();
-  const pull = page.waitForRequest('**/api/git/pull-repo/**');
+  let failure = { type: 'beforeIntake', value: { type: 'unreachable' } };
+  await page.route('**/api/tc/sync/**', (route) => route.fulfill({ json: { synced: false, failure } }));
   await page.getByRole('button', { name: 'Sync' }).click();
-  await pull;
-  await expect(page.getByRole('alert')).not.toContainText('Sync is off for this project');
+  await expect(page.getByRole('alert')).toHaveText('Not synced: Door43 cannot be reached. Your decisions are saved on this phone.');
+  failure = { type: 'afterIntake', value: { type: 'busy' } };
+  await page.getByRole('button', { name: 'Sync' }).click();
+  await expect(page.getByRole('alert')).toHaveText(
+    'Not synced: teammates are syncing this project right now. Try again in a minute. Your teammates’ work that came in is kept.',
+  );
+  await expect(page.getByTestId('progress')).toBeVisible();
+});
+
+test("j19: a project still in translationCore 4's format does not open, and says the team moves it first", async ({ page, context }) => {
+  await placeRepo(SAMPLE_PROJECT, PROJECT);
+  await writeIngredient(PROJECT, 'checking/journal/a0123456789abcdef/actor.json', '{}');
+  await openProject(page, context, 'sample_burrito');
+  await expect(page.getByRole('heading', { name: 'Move this project first' })).toBeVisible();
+  await expect(page.getByText('This project is still in translationCore 4’s format.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Titus Words' })).toHaveCount(0);
 });

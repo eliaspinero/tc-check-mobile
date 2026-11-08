@@ -45,8 +45,12 @@ async fn main() -> Result<(), rocket::Error> {
         "local_setup_path": format!("{}setup/local_setup.json", resources),
         "app_resources_path": resources,
     });
-    // As the shell does: the store's application data beside Pankosmia's repositories.
-    let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos"))
+    // As the shell does: the store's application data beside Pankosmia's repositories. The
+    // journeys' Door43 for every sync, when TC_CHECK_DOOR43 names one (a fake's URL).
+    let door43 = env::var("TC_CHECK_DOOR43")
+        .ok()
+        .map(|url| url.parse().expect("TC_CHECK_DOOR43 is a Door43 URL"));
+    let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos"), door43)
         .expect("the tc store starts");
     tc::mount(
         limits::with_upload_limits(pankosmia_web::rocket(conf)),

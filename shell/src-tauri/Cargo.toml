@@ -39,6 +39,8 @@ thiserror = "2"
 # The Rust translationCore 4's store, which records the decisions (src/tc.rs, #48). The rig pins the same.
 tc-journal = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
 tc-store = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tc-door43 = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tc-sync = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
 tauri-plugin-fs = "2"
 include_dir = "0.7"
 tauri-plugin-http = "2"

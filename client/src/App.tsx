@@ -130,6 +130,7 @@ export default function App() {
           focus={screen.focus}
           onOpen={(s, index) => go({ ...screen, name: 'check', session: s, index })}
           onBack={() => go({ name: 'books', repoPath: screen.repoPath }, true)}
+          door43={session}
         />
       );
     case 'check':

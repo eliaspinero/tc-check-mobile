@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
-import { hasLocalWork } from '../session/decide';
+import { isTcProject, syncTc } from '../session/decide';
+import { syncFailureText } from './syncFailure';
 import { loadSession, type Session } from '../session/loadSession';
 import { t } from '../i18n';
 import type { Strings } from '../i18n/en';
@@ -40,9 +41,11 @@ type Props = {
   focus?: number;
   onOpen: (session: Session, index: number) => void;
   onBack: () => void;
+  /** The checker signed in: a project in the Rust tC4's format syncs as them. */
+  door43: { username: string; token: string };
 };
 
-export default function CheckList({ repoPath, tool, book, source, engine, focus, onOpen, onBack }: Props) {
+export default function CheckList({ repoPath, tool, book, source, engine, focus, onOpen, onBack, door43 }: Props) {
   const [session, setSession] = useState<Session | null>(null);
   // The list's one status line: nothing to say, a Sync running, or why loading or syncing failed.
   // A failure shows over the list already on screen, which stays.
@@ -59,14 +62,19 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   }, [repoPath, tool, book, source, engine]);
   useEffect(load, [load]);
 
-  // Sync brings Door43 main into this copy and reloads the list; it pushes nothing yet (the second slice of #48).
-  // Once this phone has decided in the project, a pull would merge its commits with Door43's and break the
-  // decision files, so Sync waits for that slice.
+  // Sync: a project in the Rust tC4's format syncs as the Rust tC4 does, both ways; any other only brings Door43
+  // main into this copy (it holds nothing the phone wrote). Then the list reloads.
   const sync = async () => {
     setStatus({ state: 'syncing' });
     try {
-      if (await hasLocalWork(repoPath, source)) {
-        setStatus({ state: 'failed', message: t('syncAfterDeciding') });
+      // The project's own format decides, not the list: Sync may be tapped before the list has loaded.
+      if (isTcProject(await source.listPaths(repoPath))) {
+        const result = await syncTc(repoPath, door43, source);
+        if (!result.synced) {
+          setStatus({ state: 'failed', message: syncFailureText(result.failure) });
+          return;
+        }
+        load();
         return;
       }
       await source.enableNet();

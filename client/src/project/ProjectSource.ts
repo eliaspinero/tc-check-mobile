@@ -16,6 +16,12 @@ export interface DecisionToRecord {
   nothingToSelect: boolean;
 }
 
+/** How a sync ended. `failure` is the Rust tC4's own `SyncFailure`: when it stopped (`blocked`, `beforeIntake`,
+ * `afterIntake`) and why (`value.type`, such as `offline` or `authFailed`). */
+export type TcSyncResult =
+  | { synced: true; received: boolean; confirmed: boolean }
+  | { synced: false; failure: { type: 'blocked' | 'beforeIntake' | 'afterIntake'; value: { type: string } } };
+
 export interface ProjectSource {
   /** The platform's network gate starts off; clone, pull and catalog calls need it on. */
   enableNet(): Promise<void>;
@@ -32,9 +38,9 @@ export interface ProjectSource {
    * packs, then the decision file written again from them. The only write to a project: nothing else in the client
    * writes a project file. A project not in that format refuses (409). */
   recordDecision(repoPath: string, decision: DecisionToRecord): Promise<void>;
-  /** True when this phone has recorded decisions in the project, which `pull` must not merge until the phone can
-   * sync them (#48, slice 48b). Waits for a decision that is still being recorded. */
-  hasLocalWork(repoPath: string): Promise<boolean>;
+  /** Sync a project in the Rust tC4's format with Door43 as the Rust tC4 does (the shell's `tc.rs`): its decisions
+   * go up, the teammates' come down. Never `pull` on such a project: git would merge the two histories. */
+  syncTc(repoPath: string, as: { username: string; token: string }): Promise<TcSyncResult>;
   readMetadata(repoPath: string): Promise<Record<string, unknown>>;
   /** `ingredients/checking/resources.json`, or null when the repo is not a tC4 project. */
   readResources(repoPath: string): Promise<ResourcesFile | null>;
