@@ -46,6 +46,24 @@ fn decide_body(verse: u32, status: &str, selections: serde_json::Value) -> Decid
     .expect("a decide body")
 }
 
+/// A change of the words alone, with no status: what the check screen saves a moment after a
+/// tap (STORAGE.md §5.4).
+fn select_body(verse: u32, selections: serde_json::Value) -> Decide {
+    serde_json::from_value(json!({
+        "tool": "translationWords",
+        "contextId": {
+            "checkId": "a9p2", "occurrenceNote": "", "reference": { "bookId": "tit", "chapter": 1, "verse": verse },
+            "tool": "translationWords", "groupId": "apostle", "quote": "ἀπόστολος", "quoteString": "ἀπόστολος",
+            "glQuote": "", "occurrence": 1
+        },
+        "category": "kt",
+        "resource": { "repoPath": "git.door43.org/es-419_gl/es-419_twl", "sha": "c2d9547ec95e40c2ba085c597b127c94733feb8a" },
+        "selections": selections,
+        "nothingToSelect": false
+    }))
+    .expect("a select body")
+}
+
 fn decisions(repos: &Path, name: &str) -> serde_json::Value {
     let file = repos
         .join(name)
@@ -404,4 +422,49 @@ async fn a_sync_without_door43_fails_in_tc4s_words_and_keeps_the_decision() {
     assert_eq!(failure["value"]["type"], "unreachable", "{failure}");
     assert_eq!(selection_of(&repos, repo, "a9p2"), json!(false));
     std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn words_chosen_after_valid_are_saved_and_the_check_stays_valid() {
+    let root = temp("select-after");
+    let repos = root.join("repos");
+    seeded(&repos, "sample_tc");
+    let projects =
+        Projects::start(&root.join("app"), repos.clone(), None).expect("the store starts");
+    projects
+        .decide(
+            Path::new("sample_tc"),
+            &decide_body(1, "valid", json!(false)),
+        )
+        .expect("Valid is recorded");
+
+    let words = json!([{ "text": "siervo", "occurrence": 1, "occurrences": 1 }]);
+    projects
+        .decide(Path::new("sample_tc"), &select_body(1, words.clone()))
+        .expect("the words are recorded");
+
+    let file = decisions(&repos, "sample_tc");
+    let d = the_decision(&file, "a9p2");
+    assert_eq!(d["selections"], words, "{d}");
+    assert_eq!(d["status"], "valid", "{d}");
+}
+
+#[test]
+fn words_chosen_on_a_check_not_decided_are_saved_without_a_status() {
+    let root = temp("select-undecided");
+    let repos = root.join("repos");
+    seeded(&repos, "sample_tc");
+    let projects =
+        Projects::start(&root.join("app"), repos.clone(), None).expect("the store starts");
+    let before = the_decision(&decisions(&repos, "sample_tc"), "a9p2")["status"].clone();
+
+    let words = json!([{ "text": "siervo", "occurrence": 1, "occurrences": 1 }]);
+    projects
+        .decide(Path::new("sample_tc"), &select_body(1, words.clone()))
+        .expect("the words are recorded");
+
+    let file = decisions(&repos, "sample_tc");
+    let d = the_decision(&file, "a9p2");
+    assert_eq!(d["selections"], words, "{d}");
+    assert_eq!(d["status"], before, "the status is not set: {d}");
 }

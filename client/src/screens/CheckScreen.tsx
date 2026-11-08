@@ -219,30 +219,68 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const ref = refOf(item);
   const targetText = ctx ? engine.verseText(verseOf(ctx.target, item)) : '';
   const target = ctx ? engine.targetTokens(targetText, item.selections as Selection[] | false) : null;
-  // The words tapped on a check; on another check, or before the first tap, the stored selection.
-  const [tapped, setTapped] = useState<{ index: number; words: Set<number> } | null>(null);
-  const chosen: ReadonlySet<number> = tapped?.index === index ? tapped.words : new Set(target?.selected ?? []);
-  const toggle = (i: number) => {
-    const words = new Set(chosen);
-    if (words.has(i)) words.delete(i);
-    else words.add(i);
-    setTapped({ index, words });
-  };
+  // The words tapped on each check, by its index, until the session read after their save has them; without taps,
+  // the stored selection.
+  const [tapped, setTapped] = useState<ReadonlyMap<number, ReadonlySet<number>>>(new Map());
+  const chosen: ReadonlySet<number> = tapped.get(index) ?? new Set(target?.selected ?? []);
 
   const [status, setStatus] = useState<Run<{ state: 'saving' }>>(IDLE);
-  const record = async (patch: DecisionPatch) => {
+  /** Records `patch` on the check at `at`, then reloads the session; its taps give way to the saved words. */
+  const record = async (at: number, patch: DecisionPatch, words: ReadonlySet<number>) => {
     if (!session.pin) return;
     setStatus({ state: 'saving' });
     try {
-      await decide({ repoPath, tool, item, patch, pin: session.pin }, source);
+      await decide({ repoPath, tool, item: session.items[at], patch, pin: session.pin }, source);
       onDecided(await loadSession(repoPath, tool, book, source, engine));
-      setTapped(null);
+      // Taps made while it saved stay: they are the next change.
+      setTapped((old) => (old.get(at) === words ? new Map([...old].filter(([i]) => i !== at)) : old));
       setStatus(IDLE);
     } catch (e) {
       setStatus({ state: 'failed', message: (e as Error).message });
     }
   };
-  const mark = (button: 'valid' | 'invalid') => record(engine.patch(button, targetText, [...chosen]));
+
+  // A change of the words alone is saved 1 s after the last tap, or at once when the checker leaves the check or the
+  // app goes to the background, as the Rust tC4 saves it (STORAGE.md §5.4). The status stays as it is.
+  const unsaved = useRef<{ at: number; words: ReadonlySet<number>; text: string; status: 'valid' | 'invalid' | null; timer: number } | null>(null);
+  const saveTaps = () => {
+    const taps = unsaved.current;
+    if (!taps) return;
+    unsaved.current = null;
+    clearTimeout(taps.timer);
+    void record(taps.at, engine.select(taps.text, [...taps.words], taps.status), taps.words);
+  };
+  // Leaving goes through the latest render's save, whichever render set the taps.
+  const saveTapsNow = useRef(saveTaps);
+  saveTapsNow.current = saveTaps;
+  useEffect(() => () => saveTapsNow.current(), [index]);
+  useEffect(() => {
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') saveTapsNow.current();
+    };
+    const closing = () => saveTapsNow.current();
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', closing);
+    return () => {
+      document.removeEventListener('visibilitychange', hidden);
+      window.removeEventListener('pagehide', closing);
+    };
+  }, []);
+
+  const toggle = (i: number) => {
+    const words = new Set(chosen);
+    if (words.has(i)) words.delete(i);
+    else words.add(i);
+    setTapped((old) => new Map(old).set(index, words));
+    clearTimeout(unsaved.current?.timer);
+    unsaved.current = { at: index, words, text: targetText, status: decisionOf(engine, item), timer: window.setTimeout(() => saveTapsNow.current(), 1000) };
+  };
+  // A button saves the status with the words on screen, and with them any taps waiting.
+  const mark = (button: 'valid' | 'invalid') => {
+    clearTimeout(unsaved.current?.timer);
+    unsaved.current = null;
+    void record(index, engine.patch(button, targetText, [...chosen]), chosen);
+  };
   const decided = decisionOf(engine, item);
   const last = index === total - 1;
   const after = last ? null : refOf(session.items[index + 1]);
