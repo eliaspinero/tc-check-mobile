@@ -173,6 +173,20 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const ctx = ready(context);
   const [picking, setPicking] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // The checks either side open their help once this one has finished opening (its own transition, 0 with reduced
+  // motion): drawing two whole tW articles while it grows cost dropped frames. They are off screen, so nobody sees them wait.
+  const [peeksOpen, setPeeksOpen] = useState(false);
+  useEffect(() => {
+    if (!helpOpen) return;
+    const more = swipe.content.current!.querySelector(':scope > .help > .help-more')!;
+    const opening = parseFloat(getComputedStyle(more).transitionDuration) * 1000;
+    const timer = setTimeout(() => setPeeksOpen(true), opening);
+    return () => clearTimeout(timer);
+  }, [helpOpen]);
+  const toggleHelp = () => {
+    setPeeksOpen(false);
+    setHelpOpen(!helpOpen);
+  };
   // tW articles read so far, by category/groupId: the check on screen and those either side, so a swipe lands on a full help.
   const [articles, setArticles] = useState<ReadonlyMap<string, Article>>(new Map());
   const total = session.items.length;
@@ -286,11 +300,11 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
               const side = i < index ? 'prev' : 'next';
               return (
                 <div key={side} className={`peek ${side}`} data-testid={`peek-${side}`} aria-hidden="true" {...{ inert: '' }}>
-                  <CheckBody item={near} tool={tool} ctx={ctx} article={articles.get(articleKey(near))} helpOpen={helpOpen} onHelp={() => undefined} journaled={session.journaled} engine={engine} still />
+                  <CheckBody item={near} tool={tool} ctx={ctx} article={articles.get(articleKey(near))} helpOpen={helpOpen && peeksOpen} onHelp={() => undefined} journaled={session.journaled} engine={engine} still />
                 </div>
               );
             })}
-            <CheckBody item={item} tool={tool} ctx={ctx} article={articles.get(articleKey(item))} helpOpen={helpOpen} onHelp={() => setHelpOpen(!helpOpen)} journaled={session.journaled} engine={engine} chosen={chosen} onToggle={toggle} />
+            <CheckBody item={item} tool={tool} ctx={ctx} article={articles.get(articleKey(item))} helpOpen={helpOpen} onHelp={toggleHelp} journaled={session.journaled} engine={engine} chosen={chosen} onToggle={toggle} />
           </>
         )}
       </div>

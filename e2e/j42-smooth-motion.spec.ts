@@ -139,10 +139,14 @@ test.describe('with motion', () => {
   test('j42: the leaving copy of a scrolled check keeps its Ocean bar at the bottom', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openCheck(page, context);
-    // Open, the help makes the check taller than the screen.
+    // Open, the help makes the check taller than the screen. It grows for a moment, so the wheel turns until it can scroll.
     await page.getByTestId('help').locator('.help-toggle').click();
-    await page.mouse.wheel(0, 400);
-    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(50);
+    await expect
+      .poll(async () => {
+        await page.mouse.wheel(0, 400);
+        return page.evaluate(() => scrollY);
+      })
+      .toBeGreaterThan(50);
     await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
     await pause(page);
     const bar = (await leaving(page).locator('nav.bottombar').boundingBox())!;
