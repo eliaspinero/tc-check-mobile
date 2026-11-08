@@ -9,6 +9,8 @@ import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import { door43ErrorText } from './door43Error';
 import { isTc4xProject } from '../session/decide';
+import { keepNow, keys, kept } from '../session/kept';
+import { missingPins } from '../resources/installPins';
 
 type Props = {
   api: Door43Api;
@@ -16,7 +18,8 @@ type Props = {
   session: Door43Session;
   /** The Door43 host projects are cloned from, for example `qa.door43.org`. */
   host: string;
-  onOpen: (repoPath: string) => void;
+  /** `installed`: every resource the project pins is on this device, so it opens on its books. */
+  onOpen: (repoPath: string, installed: boolean) => void;
   onSignOut: () => void;
   /** Projects (`owner/name`) whose clone is still running, also from before a sign-out. */
   cloning: ReadonlySet<string>;
@@ -50,15 +53,23 @@ function SignOut({ onSignOut }: { onSignOut: () => void }) {
 }
 
 export default function ProjectList({ api, source, session, host, onOpen, onSignOut, cloning, onCloning }: Props) {
-  const [repos, setRepos] = useState<Door43Repo[] | null>(null);
+  // The Door43 list this run read last for this checker shows at once (session/kept.ts); Door43's answer replaces it.
+  const listKey = keys.projects(host, session.username);
+  const [repos, setRepos] = useState<Door43Repo[] | null>(() => kept<Door43Repo[]>(listKey) ?? null);
   // What the screen is doing besides listing: nothing, opening one project (`owner/name`), showing why the
   // list or an opening failed (over the list, which stays), or saying the opened repo is not a tC project.
   const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'notTc' } | { state: 'tc4x' }>>(IDLE);
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
-    api.listRepos(session).then(setRepos, async (e: unknown) => {
+    const list = (got: Door43Repo[]) => {
+      keepNow(listKey, got);
+      setRepos(got);
+    };
+    api.listRepos(session).then(list, async (e: unknown) => {
       setStatus({ state: 'failed', message: t('offlineProjects', { error: door43ErrorText(e) }) });
+      // A list kept from earlier in this run stays.
+      if (kept(listKey)) return;
       const prefix = `${host}/`.toLowerCase();
       const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
       setRepos(
@@ -68,10 +79,13 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
         }),
       );
     });
-  }, [api, session, source, host]);
+  }, [api, session, source, host, listKey]);
 
   // Opening clears the offline notice, as any earlier failure: what shows next is about this project.
   const open = async (repo: Door43Repo) => {
+    // A project opened earlier in this run with every resource on the device opens again without reading anything.
+    const known = kept<string>(keys.ready(`${host}/${repo.owner}/${repo.name}`));
+    if (known) return onOpen(known, true);
     setStatus({ state: 'opening', key: keyOf(repo) });
     try {
       let repoPath = localPathOf(await source.listLocal(), host, repo);
@@ -84,7 +98,8 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
           onCloning(keyOf(repo), false);
         }
       }
-      if (!(await source.readResources(repoPath))) {
+      const resources = await source.readResources(repoPath);
+      if (!resources) {
         setStatus({ state: 'notTc' });
         return;
       }
@@ -92,7 +107,10 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
         setStatus({ state: 'tc4x' });
         return;
       }
-      onOpen(repoPath);
+      // Straight to the books when nothing is missing: the resources screen shows only to install.
+      const installed = (await missingPins(resources, source)).length === 0;
+      if (installed) keepNow(keys.ready(`${host}/${repo.owner}/${repo.name}`), repoPath);
+      onOpen(repoPath, installed);
       setStatus(IDLE);
     } catch (e) {
       setStatus({ state: 'failed', message: (e as Error).message });

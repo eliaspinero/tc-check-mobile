@@ -3,7 +3,8 @@ import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection,
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
 import { decide } from '../session/decide';
-import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
+import type { CheckContext } from '../session/loadCheckContext';
+import { contextOf, keys, kept, resourceText } from '../session/kept';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import { useSwipe } from './useSwipe';
@@ -169,7 +170,11 @@ function CheckBody({ item, tool, ctx, article, helpOpen, onHelp, journaled, engi
 const decisionOf = (engine: CheckingEngine, item: CheckItem) => (engine.progress([item]).decided === 1 ? (item.status === 'invalid' ? 'invalid' : 'valid') : null);
 
 export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onDecided, onBack }: Props) {
-  const [context, setContext] = useState<Load<CheckContext>>(LOADING);
+  // What this run has read already shows at once (session/kept.ts).
+  const [context, setContext] = useState<Load<CheckContext>>(() => {
+    const known = kept<CheckContext>(keys.context(repoPath, book, session.rung));
+    return known ? { state: 'ready', value: known } : LOADING;
+  });
   const ctx = ready(context);
   const [picking, setPicking] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -193,7 +198,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const swipe = useSwipe(index < total - 1 ? () => onIndex(index + 1) : undefined, index > 0 ? () => onIndex(index - 1) : undefined);
 
   useEffect(() => {
-    loadCheckContext(repoPath, book, session.rung, source, engine).then(
+    contextOf(repoPath, book, session.rung, source, engine).then(
       (value) => setContext({ state: 'ready', value }),
       (e: Error) => setContext({ state: 'failed', message: e.message }),
     );
@@ -208,7 +213,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       missingKey.split(',').map(async (key): Promise<[string, Article]> => {
         const groupId = key.split('/')[1];
         try {
-          const { title, body } = splitTitle(await source.readText(twPath, `payload/${key}.md`));
+          const { title, body } = splitTitle(await resourceText(source, twPath, `payload/${key}.md`));
           return [key, { title: title ?? groupId, blocks: engine.articleBlocks(body) }];
         } catch {
           return [key, { title: groupId, blocks: engine.articleBlocks(t('articleMissing')) }];

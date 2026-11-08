@@ -15,6 +15,7 @@ import { pankosmiaSource } from './project/pankosmiaSource';
 import { tsEngine } from './engine/tsEngine';
 import type { Tool } from './engine/CheckingEngine';
 import type { Session } from './session/loadSession';
+import { forgetProject, keepNow, keys } from './session/kept';
 import { t } from './i18n';
 
 type Screen =
@@ -105,7 +106,11 @@ export default function App() {
           key={screen.repoPath}
           repoPath={screen.repoPath}
           source={source}
-          onReady={() => go({ name: 'books', repoPath: screen.repoPath })}
+          // Installed resources change what the project's screens read.
+          onReady={() => {
+            forgetProject(screen.repoPath);
+            go({ name: 'books', repoPath: screen.repoPath });
+          }}
           onBack={() => go({ name: 'projects' }, true)}
         />
       );
@@ -146,15 +151,17 @@ export default function App() {
           onIndex={(index) => setScreen({ ...screen, index })}
           // A save lands after the tap; by then the checker may have moved on. Only the screen it was made
           // on, still showing the same list, takes the new session, at whichever check it shows now.
-          onDecided={(s) =>
+          onDecided={(s) => {
+            // The new session replaces the kept one, so the list and the book's progress show it after Back.
+            keepNow(keys.session(screen.repoPath, screen.tool, screen.book), s);
             setScreen((cur) =>
               cur.name === 'check' && cur.repoPath === screen.repoPath && cur.book === screen.book && cur.tool === screen.tool ? { ...cur, session: s } : cur,
-            )
-          }
+            );
+          }}
           onBack={() => go({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index }, true)}
         />
       );
     default:
-      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath) => live.current === session && go({ name: 'install', repoPath })} onSignOut={signOut} cloning={cloning} onCloning={onCloning} />;
+      return <ProjectList api={api} source={source} session={session} host={host} onOpen={(repoPath, installed) => live.current === session && go(installed ? { name: 'books', repoPath } : { name: 'install', repoPath })} onSignOut={signOut} cloning={cloning} onCloning={onCloning} />;
   }
 }

@@ -8,7 +8,7 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLIENT_URL, NEEDS_RIG, SAMPLE_PROJECT, placeRepo, rigUp } from './helpers/rig';
+import { CLIENT_URL, NEEDS_RIG, SAMPLE_PROJECT, UST_V90_INSTALL, deleteRepoIfPresent, placeProjectMissingUstV90, placeRepo, rigUp } from './helpers/rig';
 import { fakeDoor43, QA_SERVER } from './helpers/fakeDoor43';
 import { fakeTauri } from './helpers/fakeTauri';
 import { USER, openProject } from './helpers/session';
@@ -115,7 +115,9 @@ test.describe('skeletons', () => {
 
   test('j30: the resources screen shows a skeleton while it reads what the project needs', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
-    await placeRepo(SAMPLE_PROJECT, PROJECT);
+    // A project with a resource missing: one with everything installed opens on its books, with no resources screen (#44).
+    await deleteRepoIfPresent(UST_V90_INSTALL);
+    await placeProjectMissingUstV90(PROJECT);
     // The project list reads resources.json once to open the project; the resources screen reads it again.
     let reads = 0;
     let open = () => {};
@@ -130,7 +132,7 @@ test.describe('skeletons', () => {
     await openProject(page, context, 'sample_burrito');
     await expectSkeleton(page, 'Reading the resources this project needs…');
     open();
-    await expect(page.getByRole('button', { name: /^Titus Words/ })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('skeleton')).toHaveCount(0);
   });
 
   test('j30: the book picker shows a skeleton while it reads the project', async ({ page, context }) => {

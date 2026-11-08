@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { CheckingEngine, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
-import { loadSession, scopeOf } from '../session/loadSession';
+import { scopeOf, type Session } from '../session/loadSession';
+import { keep, kept, keptFailed, keys, sessionOf } from '../session/kept';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import TopBar from './TopBar';
@@ -10,34 +11,48 @@ import Skeleton from './Skeleton';
 import { stagger } from './stagger';
 import { LOADING, failure, ready, type Load } from './load';
 
+/** A session's progress, or null when its list cannot be shown (the list says why). */
+const progressOf = (s: Session) => (s.state === 'ready' ? s.progress : null);
+
 const TOOLS: Tool[] = ['translationWords', 'translationNotes'];
 
 type Props = { repoPath: string; source: ProjectSource; engine: CheckingEngine; onPick: (book: string, tool: Tool) => void; onBack: () => void };
 
 export default function BookPicker({ repoPath, source, engine, onPick, onBack }: Props) {
-  const [scope, setScope] = useState<Load<string[]>>(LOADING);
+  // What this run has read already shows at once (session/kept.ts); the rest is read in the background.
+  const [scope, setScope] = useState<Load<string[]>>(() => {
+    const known = kept<string[]>(keys.scope(repoPath));
+    return known ? { state: 'ready', value: known } : LOADING;
+  });
   const books = ready(scope);
   // `${book} ${tool}` → its progress, or null when the list cannot be shown (the list says why).
-  const [progress, setProgress] = useState<Record<string, { decided: number; total: number } | null>>({});
+  const [progress, setProgress] = useState<Record<string, { decided: number; total: number } | null>>(() => {
+    const known: Record<string, { decided: number; total: number } | null> = {};
+    for (const book of kept<string[]>(keys.scope(repoPath)) ?? [])
+      for (const tool of TOOLS) {
+        const key = keys.session(repoPath, tool, book);
+        const s = kept<Session>(key);
+        if (s) known[`${book} ${tool}`] = progressOf(s);
+        else if (keptFailed(key)) known[`${book} ${tool}`] = null;
+      }
+    return known;
+  });
 
   useEffect(() => {
-    source.readMetadata(repoPath).then(
-      (meta) => setScope({ state: 'ready', value: Object.keys(scopeOf(meta)) }),
+    keep(keys.scope(repoPath), () => source.readMetadata(repoPath).then((meta) => Object.keys(scopeOf(meta)))).then(
+      (value) => setScope({ state: 'ready', value }),
       (e: Error) => setScope({ state: 'failed', message: e.message }),
     );
   }, [repoPath, source]);
 
-  // One book and tool at a time, in the background: a tap never waits for it.
+  // One book and tool at a time, in the background: a tap never waits for it, and a list it opens shares the read.
   useEffect(() => {
     if (!books) return;
     let current = true;
     (async () => {
       for (const book of books)
         for (const tool of TOOLS) {
-          const counts = await loadSession(repoPath, tool, book, source, engine).then(
-            (s) => (s.state === 'ready' ? s.progress : null),
-            () => null,
-          );
+          const counts = await sessionOf(repoPath, tool, book, source, engine).then(progressOf, () => null);
           if (!current) return;
           setProgress((p) => ({ ...p, [`${book} ${tool}`]: counts }));
         }
