@@ -11,6 +11,10 @@ use std::path::Path;
 #[path = "../../../shell/src-tauri/src/limits.rs"]
 mod limits;
 
+// The shell's own decision routes (#48), the same file.
+#[path = "../../../shell/src-tauri/src/tc.rs"]
+mod tc;
+
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     let state = env::args().nth(1).expect("usage: tc-check-rig <state dir>");
@@ -19,14 +23,21 @@ async fn main() -> Result<(), rocket::Error> {
     // pankosmia-web finds the home folder with the `home` crate: HOME, or USERPROFILE on Windows.
     env::set_var("HOME", &state);
     env::set_var("USERPROFILE", &state);
-    let working_dir = Path::new(&state).join("work").to_str().expect("utf-8 path").to_string();
+    let working_dir = Path::new(&state)
+        .join("work")
+        .to_str()
+        .expect("utf-8 path")
+        .to_string();
     if env::var("ROCKET_PORT").is_err() {
         env::set_var("ROCKET_PORT", "19980");
     }
     if env::var("ROCKET_ADDRESS").is_err() {
         env::set_var("ROCKET_ADDRESS", "127.0.0.1");
     }
-    let resources = concat!(env!("CARGO_MANIFEST_DIR"), "/../../shell/src-tauri/pankosmia_resources/lib/");
+    let resources = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../shell/src-tauri/pankosmia_resources/lib/"
+    );
     let conf = json!({
         "working_dir": working_dir,
         "webfont_path": format!("{}webfonts", resources),
@@ -34,6 +45,18 @@ async fn main() -> Result<(), rocket::Error> {
         "local_setup_path": format!("{}setup/local_setup.json", resources),
         "app_resources_path": resources,
     });
-    limits::with_upload_limits(pankosmia_web::rocket(conf)).launch().await?;
+    // As the shell does: the store's application data beside Pankosmia's repositories. The
+    // journeys' Door43 for every sync, when TC_CHECK_DOOR43 names one (a fake's URL).
+    let door43 = env::var("TC_CHECK_DOOR43")
+        .ok()
+        .map(|url| url.parse().expect("TC_CHECK_DOOR43 is a Door43 URL"));
+    let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos"), door43)
+        .expect("the tc store starts");
+    tc::mount(
+        limits::with_upload_limits(pankosmia_web::rocket(conf)),
+        projects,
+    )
+    .launch()
+    .await?;
     Ok(())
 }

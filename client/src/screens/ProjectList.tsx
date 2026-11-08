@@ -8,6 +8,7 @@ import Skeleton from './Skeleton';
 import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import { door43ErrorText } from './door43Error';
+import { isTc4xProject } from '../session/decide';
 
 type Props = {
   api: Door43Api;
@@ -52,7 +53,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
   const [repos, setRepos] = useState<Door43Repo[] | null>(null);
   // What the screen is doing besides listing: nothing, opening one project (`owner/name`), showing why the
   // list or an opening failed (over the list, which stays), or saying the opened repo is not a tC project.
-  const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'notTc' }>>(IDLE);
+  const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'notTc' } | { state: 'tc4x' }>>(IDLE);
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
@@ -87,6 +88,10 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
         setStatus({ state: 'notTc' });
         return;
       }
+      if (isTc4xProject(await source.listPaths(repoPath))) {
+        setStatus({ state: 'tc4x' });
+        return;
+      }
       onOpen(repoPath);
       setStatus(IDLE);
     } catch (e) {
@@ -94,6 +99,14 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     }
   };
   const opening = status.state === 'opening' ? status.key : null;
+
+  if (status.state === 'tc4x')
+    return (
+      <main className="screen">
+        <TopBar title={t('tc4xTitle')} onBack={() => setStatus(IDLE)} />
+        <p>{t('tc4xBody')}</p>
+      </main>
+    );
 
   if (status.state === 'notTc')
     return (

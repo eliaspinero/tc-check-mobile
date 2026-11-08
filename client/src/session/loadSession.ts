@@ -3,7 +3,7 @@
 import type { CheckingEngine, CheckItem, Coverage, ResourcePin, ResourcesFile, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { installedPathOf } from '../resources/installPins';
-import { readJournal } from './journal';
+import { isTcProject } from './decide';
 
 export type SessionState =
   | 'ready'
@@ -26,7 +26,8 @@ export interface Session {
   rung: 'primary' | 'fallback' | null;
   /** The project's versification, when it is known (the versification states name it). */
   scheme: string | null;
-  /** True when the project's journal holds this book, so a decision can be recorded on it (R-8.5.6). */
+  /** True when the project is in the Rust tC4's format, so a decision can be recorded on it. A tC4 4.x or older
+   * project is read only: its team moves it to the new translationCore on a computer first (#48). */
   journaled: boolean;
 }
 
@@ -97,15 +98,15 @@ export const loadSession = async (repoPath: string, tool: Tool, book: string, so
   if (frame.state !== 'ready') return { ...empty(`versification-${frame.state}`, resolution.pin), rung: resolution.rung };
   if (frame.name !== RESOURCE_FRAME) return { ...empty('versification-unsupported', resolution.pin), rung: resolution.rung, scheme: frame.name };
 
-  const [tsv, decisions, metadata, journal] = await Promise.all([
+  const [tsv, decisions, metadata, paths] = await Promise.all([
     source.readText(listPath, `${book.toUpperCase()}.tsv`),
     source.readDecisions(repoPath, tool, book.toUpperCase()),
     source.readMetadata(repoPath),
-    readJournal(repoPath, source, engine),
+    source.listPaths(repoPath),
   ]);
-  // A journaled book reads its decisions from the journal, the record; the decision file is derived
-  // from it and may lag one write behind (the app closed between the two writes of a decision).
-  const journaled = journal !== null && engine.journal.hasBook(journal.fold, book);
+  // In either format the decisions are read from the decision file. In the Rust tC4's it is the fold's projection,
+  // written again by every decision before it answers, and by every open of the project (tc.rs).
+  const journaled = isTcProject(paths);
   const { items, unplaceable } = await engine.deriveItems({
     tsv,
     tool,
@@ -113,7 +114,7 @@ export const loadSession = async (repoPath: string, tool: Tool, book: string, so
     from: RESOURCE_FRAME,
     to: RESOURCE_FRAME,
     schemes: {},
-    saved: journaled ? engine.journal.decisions(journal.fold, tool, book) : ((decisions?.decisions ?? []) as unknown as CheckItem[]),
+    saved: (decisions?.decisions ?? []) as unknown as CheckItem[],
     keepInvalidated:
       !!decisions?.resource &&
       decisions.resource.repoPath.toLowerCase() === resolution.pin.repoPath.toLowerCase() &&

@@ -6,7 +6,7 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, rigUp } from './helpers/rig';
 import { openProject } from './helpers/session';
-import { placeJournaledProject } from './helpers/journal';
+import { placeTcProject } from './helpers/journal';
 
 const PROJECT = 'qa.door43.org/checker1/sample_burrito';
 
@@ -139,10 +139,14 @@ test.describe('with motion', () => {
   test('j42: the leaving copy of a scrolled check keeps its Ocean bar at the bottom', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
     await openCheck(page, context);
-    // Open, the help makes the check taller than the screen.
+    // Open, the help makes the check taller than the screen. It grows for a moment, so the wheel turns until it can scroll.
     await page.getByTestId('help').locator('.help-toggle').click();
-    await page.mouse.wheel(0, 400);
-    await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(50);
+    await expect
+      .poll(async () => {
+        await page.mouse.wheel(0, 400);
+        return page.evaluate(() => scrollY);
+      })
+      .toBeGreaterThan(50);
     await page.getByRole('banner').getByRole('button', { name: 'Back' }).click();
     await pause(page);
     const bar = (await leaving(page).locator('nav.bottombar').boundingBox())!;
@@ -190,7 +194,7 @@ test.describe('with motion', () => {
 
   test('j42: a decision fades its button and the bar edge in, through opacity alone', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
-    await placeJournaledProject(PROJECT);
+    await placeTcProject(PROJECT);
     await openProject(page, context, 'sample_burrito');
     await page.getByRole('button', { name: 'Titus Words' }).click();
     await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
@@ -210,7 +214,7 @@ test.describe('with motion', () => {
 
   test('j42: the bar and the verse on it slide up when Next comes in, and down when it goes, through transform alone', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
-    await placeJournaledProject(PROJECT);
+    await placeTcProject(PROJECT);
     await openProject(page, context, 'sample_burrito');
     await page.getByRole('button', { name: 'Titus Words' }).click();
     await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
@@ -247,9 +251,9 @@ test.describe('with motion', () => {
     }
   });
 
-  /** Opens the first check not decided yet on the journaled project. */
+  /** Opens the first check not decided yet on the project in the new format. */
   const openDecidable = async (page: Page, context: BrowserContext) => {
-    await placeJournaledProject(PROJECT);
+    await placeTcProject(PROJECT);
     await openProject(page, context, 'sample_burrito');
     await page.getByRole('button', { name: 'Titus Words' }).click();
     await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
@@ -343,7 +347,7 @@ test.describe('with motion', () => {
 
   test('j42: a tap on Valid while the check slides decides the check arriving, not the one leaving', async ({ page, context }) => {
     test.skip(!(await rigUp()), NEEDS_RIG);
-    await placeJournaledProject(PROJECT);
+    await placeTcProject(PROJECT);
     await openProject(page, context, 'sample_burrito');
     await page.getByRole('button', { name: 'Titus Words' }).click();
     await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();

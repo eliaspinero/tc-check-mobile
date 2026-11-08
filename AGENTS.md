@@ -27,9 +27,9 @@ tc-check-mobile runs translationCore 4 (tC4) checks on a phone. Read the spec an
   an animation that follows a finger may use a library, and its issue decides that. `e2e/j30-motion.spec.ts` rejects an
   animated property other than `transform`/`opacity` (`display`, `content-visibility`, `overlay` and `visibility` only with
   `allow-discrete`; `grid-template-rows` only in the help), a typed duration or easing, and an animation library.
-- A decision is written only through the project's journal, as tC4 writes it
-  (`client/src/session/journal.ts`): the sealed segment first, then the derived file. Nothing else
-  writes to a project.
+- A decision is recorded only by the Rust tC4's store in the shell (`shell/src-tauri/src/tc.rs`,
+  through `ProjectSource.recordDecision`), the client's one write to a project's files besides
+  Pankosmia's clone and pull.
 
 ## Tests
 

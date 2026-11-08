@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
-import { decide } from '../session/journal';
+import { decide } from '../session/decide';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
@@ -87,15 +87,15 @@ function Help({ item, tool, ctx, article, open, onToggle, engine, still }: { ite
         <span data-testid={id('help-title')} className="help-title">{title}</span>
         <span className="chevron" aria-hidden="true">▾</span>
       </button>
-      {note && (
-        <p data-testid={id('help-refs')} className="tags">
-          {note.refs.join(' · ')}
-        </p>
-      )}
       {/* Always drawn on the check on screen, so opening can grow from nothing; closed, it is out of reach. A check at
           the screen's edge draws its text only while the help is open: a whole tW article twice more would slow the swipe. */}
       <div className="help-more" data-open={open || undefined} {...(!open && { inert: '' })}>
         <div>
+          {note && (
+            <p data-testid={id('help-refs')} className="tags">
+              {note.refs.join(' · ')}
+            </p>
+          )}
           {blocks.length > 0 && (open || !still) && (
             <div data-testid={id('help-body')} className="help-body">
               <Markdown blocks={blocks} />
@@ -173,6 +173,20 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const ctx = ready(context);
   const [picking, setPicking] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  // The checks either side open their help once this one has finished opening (its own transition, 0 with reduced
+  // motion): drawing two whole tW articles while it grows cost dropped frames. They are off screen, so nobody sees them wait.
+  const [peeksOpen, setPeeksOpen] = useState(false);
+  useEffect(() => {
+    if (!helpOpen) return;
+    const more = swipe.content.current!.querySelector(':scope > .help > .help-more')!;
+    const opening = parseFloat(getComputedStyle(more).transitionDuration) * 1000;
+    const timer = setTimeout(() => setPeeksOpen(true), opening);
+    return () => clearTimeout(timer);
+  }, [helpOpen]);
+  const toggleHelp = () => {
+    setPeeksOpen(false);
+    setHelpOpen(!helpOpen);
+  };
   // tW articles read so far, by category/groupId: the check on screen and those either side, so a swipe lands on a full help.
   const [articles, setArticles] = useState<ReadonlyMap<string, Article>>(new Map());
   const total = session.items.length;
@@ -220,11 +234,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
     if (!session.pin) return;
     setStatus({ state: 'saving' });
     try {
-      await decide(
-        { repoPath, tool, book, item, patch, resource: { repoPath: session.pin.repoPath, version: session.pin.version, sha: session.pin.sha, languageSet: session.rung ?? undefined } },
-        source,
-        engine,
-      );
+      await decide({ repoPath, tool, item, patch, pin: session.pin }, source);
       onDecided(await loadSession(repoPath, tool, book, source, engine));
       setTapped(null);
       setStatus(IDLE);
@@ -232,7 +242,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       setStatus({ state: 'failed', message: (e as Error).message });
     }
   };
-  const mark = (button: 'valid' | 'invalid') => record(engine.journal.patch(button, targetText, [...chosen]));
+  const mark = (button: 'valid' | 'invalid') => record(engine.patch(button, targetText, [...chosen]));
   const decided = decisionOf(engine, item);
   const last = index === total - 1;
   const after = last ? null : refOf(session.items[index + 1]);
@@ -290,11 +300,11 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
               const side = i < index ? 'prev' : 'next';
               return (
                 <div key={side} className={`peek ${side}`} data-testid={`peek-${side}`} aria-hidden="true" {...{ inert: '' }}>
-                  <CheckBody item={near} tool={tool} ctx={ctx} article={articles.get(articleKey(near))} helpOpen={helpOpen} onHelp={() => undefined} journaled={session.journaled} engine={engine} still />
+                  <CheckBody item={near} tool={tool} ctx={ctx} article={articles.get(articleKey(near))} helpOpen={helpOpen && peeksOpen} onHelp={() => undefined} journaled={session.journaled} engine={engine} still />
                 </div>
               );
             })}
-            <CheckBody item={item} tool={tool} ctx={ctx} article={articles.get(articleKey(item))} helpOpen={helpOpen} onHelp={() => setHelpOpen(!helpOpen)} journaled={session.journaled} engine={engine} chosen={chosen} onToggle={toggle} />
+            <CheckBody item={item} tool={tool} ctx={ctx} article={articles.get(articleKey(item))} helpOpen={helpOpen} onHelp={toggleHelp} journaled={session.journaled} engine={engine} chosen={chosen} onToggle={toggle} />
           </>
         )}
       </div>

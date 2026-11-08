@@ -105,7 +105,7 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .peek.prev { right: calc(100% + var(--peek-gap)); }
 .check { min-height: 100dvh; box-sizing: border-box; padding-bottom: var(--bar); }
 .help-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; border-radius: 0; background: transparent; padding: 0; text-align: left; font-weight: var(--fw-regular); }
-.help-body { margin-top: var(--space-2); line-height: var(--lh-body); }
+.help-body { margin-top: var(--space-2); font-size: var(--fs-body); line-height: var(--lh-body); }
 .help-body h3, .help-body h4 { font-size: var(--fs-body); font-weight: var(--fw-black); color: var(--text-heading); margin: var(--space-4) 0 var(--space-1); }
 .help-body p { margin: 0 0 var(--space-2); }
 .help-body ul { margin: 0 0 var(--space-2); padding-left: var(--space-8); }
@@ -205,6 +205,8 @@ button:disabled { opacity: 0.45; }
   /* The help opens and closes in one move: its height, its text's fade and the chevron's turn together. */
   .help-more { transition: grid-template-rows var(--dur-panel) var(--ease-standard), opacity var(--dur-panel) var(--ease-standard), visibility var(--dur-panel) var(--ease-standard) allow-discrete; }
   .chevron { display: inline-block; transition: transform var(--dur-panel) var(--ease-standard); }
+  /* Opening takes twice as long as closing: a whole article grows in, and the eye follows it down (owner, #48 testing). */
+  .help-more[data-open], .help-toggle[aria-expanded='true'] .chevron { transition-duration: calc(var(--dur-panel) * 2); }
   /* The checks waiting off screen do not grow with it: three layouts at once would cost frames for nothing seen. */
   .peek .help-more { transition: none; }
   .bottombar .progress span { transition: transform var(--dur-panel) var(--ease-standard); }

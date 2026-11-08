@@ -4,6 +4,24 @@ import type { ResourcesFile } from '../checking/types';
 import type { DecisionFile } from '../checking/types';
 import type { Tool } from '../checking/resolve';
 
+/** One Check button's decision on one check: the check as the list derived it (its tC4 `contextId` and
+ * `category`), the list's resource, and what the button records. */
+export interface DecisionToRecord {
+  tool: Tool;
+  contextId: unknown;
+  category: string;
+  resource: { repoPath: string; sha: string };
+  status: 'valid' | 'invalid';
+  selections: unknown[] | false;
+  nothingToSelect: boolean;
+}
+
+/** How a sync ended. `failure` is the Rust tC4's own `SyncFailure`: when it stopped (`blocked`, `beforeIntake`,
+ * `afterIntake`) and why (`value.type`, such as `offline` or `authFailed`). */
+export type TcSyncResult =
+  | { synced: true; received: boolean; confirmed: boolean }
+  | { synced: false; failure: { type: 'blocked' | 'beforeIntake' | 'afterIntake'; value: { type: string } } };
+
 export interface ProjectSource {
   /** The platform's network gate starts off; clone, pull and catalog calls need it on. */
   enableNet(): Promise<void>;
@@ -16,9 +34,13 @@ export interface ProjectSource {
   readText(repoPath: string, ipath: string): Promise<string>;
   /** Every file under the repo's ingredients/, as ingredient-relative paths (hidden and .bak files skipped). */
   listPaths(repoPath: string): Promise<string[]>;
-  /** Write one ingredient file. `register` adds it to metadata.json's ingredients; `bak` keeps the server's .bak copy.
-   * A journal file is neither registered nor backed up; a derived file is both, as tC4 writes them. */
-  writeText(repoPath: string, ipath: string, text: string, opts: { register: boolean; bak: boolean }): Promise<void>;
+  /** Record one decision as the Rust tC4 records it (the shell's `tc.rs`): a change sealed into the project's
+   * packs, then the decision file written again from them. The only write to a project: nothing else in the client
+   * writes a project file. A project not in that format refuses (409). */
+  recordDecision(repoPath: string, decision: DecisionToRecord): Promise<void>;
+  /** Sync a project in the Rust tC4's format with Door43 as the Rust tC4 does (the shell's `tc.rs`): its decisions
+   * go up, the teammates' come down. Never `pull` on such a project: git would merge the two histories. */
+  syncTc(repoPath: string, as: { username: string; token: string }): Promise<TcSyncResult>;
   readMetadata(repoPath: string): Promise<Record<string, unknown>>;
   /** `ingredients/checking/resources.json`, or null when the repo is not a tC4 project. */
   readResources(repoPath: string): Promise<ResourcesFile | null>;

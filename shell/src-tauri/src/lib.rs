@@ -1,6 +1,6 @@
-mod device;
 mod limits;
 mod ping;
+mod tc;
 mod token;
 use git2::opts::set_ssl_cert_file;
 use include_dir::{include_dir, Dir};
@@ -108,7 +108,10 @@ fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     println!("PANKOSMIA: working dir = {}", working_dir);
     println!("PANKOSMIA: conf = {}", conf);
 
-    let rocket = limits::with_upload_limits(pankosmia_web::rocket(conf)).attach(RemoveFrameOptions);
+    // The Rust tC4's store, for the decisions (tc.rs): its application data beside Pankosmia's
+    // repositories, which live in the home folder set above.
+    let projects = tc::Projects::start(&data_dir.join("tc"), data_dir.join("pankosmia_repos"), None)?;
+    let rocket = tc::mount(limits::with_upload_limits(pankosmia_web::rocket(conf)), projects).attach(RemoveFrameOptions);
 
     let rocket_fut = rocket.launch();
     let _ = tauri::async_runtime::spawn(async move {
@@ -126,7 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![wait_for_server, token::token_keep, token::token_read, token::token_forget, device::device_secret])
+        .invoke_handler(tauri::generate_handler![wait_for_server, token::token_keep, token::token_read, token::token_forget])
         .plugin(tauri_plugin_log::Builder::default().build())
         .setup(|app: &mut App| setup_pankosmia(app))
         .run(tauri::generate_context!())

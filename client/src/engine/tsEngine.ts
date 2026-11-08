@@ -1,15 +1,18 @@
 import { deriveForProject, deriveTargetBible, mergeAndReattach, progressOf, twArticlesOf } from '../checking/derive';
 import { oldTwlPin, resolveToolBook } from '../checking/resolve';
 import { gatewayQuote, matchQuote, tokenizeVerse } from '../checking/sourceHighlight';
-import { targetWords, tokenIndicesFromSelections } from '../checking/selections';
+import { selectionsFromTokens, targetWords, tokenIndicesFromSelections } from '../checking/selections';
 import { withSpanMembers } from '../checking/spanMembers';
 import { resolveProjectFrame } from '../checking/projectFrame';
 import { renderArticleBlocks } from '../checking/markdown';
 import type { CheckingEngine } from './CheckingEngine';
-import { tsJournal } from './tsJournal';
 
 export const tsEngine: CheckingEngine = {
-  journal: tsJournal,
+  patch: (button, verseText, tapped) => {
+    if (button === 'invalid') return { selections: false, nothingToSelect: false, status: 'invalid' };
+    const selections = selectionsFromTokens(verseText, [...tapped].sort((a, b) => a - b));
+    return { selections: selections.length ? selections : false, nothingToSelect: selections.length === 0, status: 'valid' };
+  },
   projectFrame: (repoPath, io) =>
     resolveProjectFrame(repoPath, {
       store: { readVersification: () => io.readVersification() },

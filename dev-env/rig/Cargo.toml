@@ -4,9 +4,38 @@ version = "0.1.0"
 description = "The journeys' rig: the pankosmia-web the phone ships, without a window"
 edition = "2021"
 publish = false
+default-run = "tc-check-rig"
+
+[[bin]]
+name = "tc-check-rig"
+path = "src/main.rs"
+
+[[bin]]
+name = "seed-tc"
+path = "src/seed_tc.rs"
 
 [dependencies]
 # The same pin as shell/src-tauri/Cargo.toml (j35 checks it).
 pankosmia_web = "=0.18.15"
-rocket = "0.5.1"
+rocket = { version = "0.5.1", features = ["json"] }
 serde_json = "1"
+# The same as the shell: tc.rs reads the project's git config.
+git2 = "0.21.0"
+thiserror = "2"
+# The same pins as shell/src-tauri/Cargo.toml: the Rust translationCore 4's store (#48).
+tc-journal = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tc-store = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tc-door43 = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tc-sync = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+# Only the rig: tC4's own seed of a project without a journal (STORAGE.md §13.2), which makes the
+# journeys' sample project in the new format (src/seed_tc.rs). Never in the shell.
+tc-app = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60", features = ["fixture-backend"] }
+
+[dev-dependencies]
+# The Rust tC4's own fake Door43, with git push (tests/tc.rs).
+tc-door43-fake = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+# machine-uid 0.6.0 has no Android branch (vendor/machine-uid/PROVENANCE.md).
+[patch.crates-io]
+machine-uid = { path = "../../vendor/machine-uid" }

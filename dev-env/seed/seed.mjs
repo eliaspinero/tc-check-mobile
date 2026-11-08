@@ -15,6 +15,8 @@ const RIG = 'http://127.0.0.1:19980/api';
 const REPOS = path.join(stateDir(), 'pankosmia_repos');
 const CACHE = path.join(stateDir(), 'cache');
 const SAMPLE = '_local_/_local_/sample_burrito';
+// The same project in the Rust translationCore 4's format, the only one the phone records decisions in (#48).
+const SAMPLE_TC = '_local_/_local_/sample_tc';
 
 const listLocal = async () => (await (await fetch(`${RIG}/git/list-local-repos`)).json());
 
@@ -28,6 +30,15 @@ const placeSample = () => {
   git('add', '-A');
   git('-c', 'user.name=tc-check seed', '-c', 'user.email=seed@tc-check.invalid', 'commit', '-q', '-m', 'sample project');
   console.log(`placed ${SAMPLE}`);
+};
+
+// Made by tC4's own seed (dev-env/rig/src/seed_tc.rs). Its first close commits the folder, as a Door43 clone holds it.
+const placeTcSample = () => {
+  const dir = path.join(REPOS, ...SAMPLE_TC.split('/'));
+  if (existsSync(dir)) return console.log(`kept ${SAMPLE_TC}`);
+  const manifest = path.join(here, '../rig/Cargo.toml');
+  execFileSync('cargo', ['run', '--release', '--quiet', '--manifest-path', manifest, '--bin', 'seed-tc', '--', path.join(here, 'sample-burrito'), dir], { stdio: 'inherit' });
+  console.log(`placed ${SAMPLE_TC}`);
 };
 
 const download = async (pin) => {
@@ -88,10 +99,11 @@ try {
   process.exit(1);
 }
 placeSample();
+placeTcSample();
 await installPins();
 // The rig must see what was written, or it runs on another state folder than this checkout's.
 const local = await listLocal();
-const unseen = [SAMPLE, ...pinTargets().map((p) => p.target)].filter((r) => !local.includes(r));
+const unseen = [SAMPLE, SAMPLE_TC, ...pinTargets().map((p) => p.target)].filter((r) => !local.includes(r));
 if (unseen.length) {
   console.error(`The rig on 19980 does not see ${unseen.join(', ')}: it runs on another state folder than ${stateDir()}. Restart it with npm run rig.`);
   process.exit(1);
