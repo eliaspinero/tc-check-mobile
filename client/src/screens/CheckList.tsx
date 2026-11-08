@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
-import { forgetJournal } from '../session/journal';
 import { t } from '../i18n';
 import type { Strings } from '../i18n/en';
 import { bookName, toolName } from '../i18n/books';
@@ -59,13 +58,12 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   }, [repoPath, tool, book, source, engine]);
   useEffect(load, [load]);
 
-  // Slice 1 is read only: Sync brings Door43 main into this copy and reloads the list. It writes nothing.
+  // Sync brings Door43 main into this copy and reloads the list; it pushes nothing yet (the second slice of #48).
   const sync = async () => {
     setStatus({ state: 'syncing' });
     try {
       await source.enableNet();
       await source.pull(repoPath);
-      forgetJournal(repoPath);
       load();
     } catch (e) {
       setStatus({ state: 'failed', message: (e as Error).message });

@@ -4,6 +4,18 @@ import type { ResourcesFile } from '../checking/types';
 import type { DecisionFile } from '../checking/types';
 import type { Tool } from '../checking/resolve';
 
+/** One Check button's decision on one check: the check as the list derived it (its tC4 `contextId` and
+ * `category`), the list's resource, and what the button records. */
+export interface DecisionToRecord {
+  tool: Tool;
+  contextId: unknown;
+  category: string;
+  resource: { repoPath: string; sha: string };
+  status: 'valid' | 'invalid';
+  selections: unknown[] | false;
+  nothingToSelect: boolean;
+}
+
 export interface ProjectSource {
   /** The platform's network gate starts off; clone, pull and catalog calls need it on. */
   enableNet(): Promise<void>;
@@ -16,9 +28,10 @@ export interface ProjectSource {
   readText(repoPath: string, ipath: string): Promise<string>;
   /** Every file under the repo's ingredients/, as ingredient-relative paths (hidden and .bak files skipped). */
   listPaths(repoPath: string): Promise<string[]>;
-  /** Write one ingredient file. `register` adds it to metadata.json's ingredients; `bak` keeps the server's .bak copy.
-   * A journal file is neither registered nor backed up; a derived file is both, as tC4 writes them. */
-  writeText(repoPath: string, ipath: string, text: string, opts: { register: boolean; bak: boolean }): Promise<void>;
+  /** Record one decision as the Rust tC4 records it (the shell's `tc.rs`): a change sealed into the project's
+   * packs, then the decision file written again from them. The only write to a project: nothing else in the client
+   * writes a project file. A project not in that format refuses (409). */
+  recordDecision(repoPath: string, decision: DecisionToRecord): Promise<void>;
   readMetadata(repoPath: string): Promise<Record<string, unknown>>;
   /** `ingredients/checking/resources.json`, or null when the repo is not a tC4 project. */
   readResources(repoPath: string): Promise<ResourcesFile | null>;

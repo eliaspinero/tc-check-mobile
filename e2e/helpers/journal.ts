@@ -1,55 +1,23 @@
-// A journaled copy of the sample project, as tC4 leaves a project it opened: its sidecars seeded into
-// one journal action by tC4's own seeder (journal/reconcile.mjs seedFromSidecars, copied in the client).
-import { seedFromSidecars } from '../../client/src/checking/journal/reconcile.mjs';
-import { fold } from '../../client/src/checking/journal/fold.mjs';
-import { sealAction, segmentName, validateSegment, type JournalEvent } from '../../client/src/checking/journal/seal';
-import { tsJournal } from '../../client/src/engine/tsJournal';
-import { scopeOf } from '../../client/src/session/loadSession';
-import { SAMPLE_PROJECT, listPaths, placeRepo, readIngredient, readMetadata, writeIngredient } from './rig';
+// The journeys' project in the Rust translationCore 4's format (#48): the sample project as tC4's own seed
+// makes it (dev-env/rig/src/seed_tc.rs, `npm run rig:seed`), and what the phone's decisions leave in it.
+import { listPaths, placeRepo, readIngredient } from './rig';
 
-/** The actor tC4 desktop is in these journeys. */
-export const DESKTOP_ACTOR = 'tc4-desktop-test';
-const JOURNAL = 'checking/journal/';
+/** The sample project in the new format, as the rig's seed places it. */
+export const SAMPLE_TC = '_local_/_local_/sample_tc';
 
-/** Copy the sample project to `target` and seed its journal as tC4 desktop would on first open. */
-export const placeJournaledProject = async (target: string): Promise<void> => {
-  await placeRepo(SAMPLE_PROJECT, target);
-  const read = (ipath: string) => readIngredient(target, ipath);
-  const scope = scopeOf(await readMetadata(target));
-  const books: Record<string, { usfm: string; scope: string[] }> = {};
-  for (const book of Object.keys(scope)) books[book] = { usfm: await read(`${book}.usfm`), scope: scope[book] };
-  const events = seedFromSidecars({
-    actor: DESKTOP_ACTOR,
-    books,
-    decisionFiles: {
-      translationWords: JSON.parse(await read('checking/translationWords/TIT.json')),
-      translationNotes: JSON.parse(await read('checking/translationNotes/TIT.json')),
-    },
-    resources: JSON.parse(await read('checking/resources.json')),
-    settings: JSON.parse(await read('checking/settings.json')),
-    vrs: { name: 'unrecorded', bytes: await read('vrs.json') },
-  }) as JournalEvent[];
-  await writeIngredient(target, `${JOURNAL}${DESKTOP_ACTOR}/actor.json`, tsJournal.actorDoc(DESKTOP_ACTOR, '2020-01-01T00:00:00.000Z'));
-  await writeIngredient(target, `${JOURNAL}${DESKTOP_ACTOR}/segments/${segmentName(events[0].ts)}`, await sealAction(events));
-};
+/** Copy the new-format sample project to `target`. */
+export const placeTcProject = (target: string): Promise<void> => placeRepo(SAMPLE_TC, target);
 
-/** Every journal file of a project, by ingredient path. */
-export const journalFiles = async (repoPath: string): Promise<Record<string, string>> => {
-  const paths = (await listPaths(repoPath)).filter((p) => p.startsWith(JOURNAL));
-  const out: Record<string, string> = {};
-  for (const p of paths) out[p] = await readIngredient(repoPath, p);
-  return out;
-};
+/** The project's sealed packs (`ingredients/tc/changes/<sealer>/<yyyy-mm>/<pack>.ndjson`), by ingredient path. */
+export const packsOf = async (repoPath: string): Promise<string[]> =>
+  (await listPaths(repoPath)).filter((p) => p.startsWith('tc/changes/') && p.endsWith('.ndjson')).sort();
 
-/** The project's journal as tC4 reads it: every segment through tC4's validator, then folded. */
-export const foldOf = async (repoPath: string): Promise<{ fold: ReturnType<typeof fold>; events: JournalEvent[]; refused: string[] }> => {
-  const events: JournalEvent[] = [];
-  const refused: string[] = [];
-  for (const [ipath, raw] of Object.entries(await journalFiles(repoPath))) {
-    if (!ipath.endsWith('.action.json')) continue;
-    const verdict = await validateSegment(raw);
-    if (verdict.ok) events.push(...verdict.events);
-    else refused.push(`${ipath}: ${verdict.reason}`);
+/** Every change line of the project's packs, as JSON: the line's text before its TAB and checksum (STORAGE.md §4.1). */
+export const changesOf = async (repoPath: string): Promise<Array<Record<string, unknown>>> => {
+  const out: Array<Record<string, unknown>> = [];
+  for (const pack of await packsOf(repoPath)) {
+    const [, ...lines] = (await readIngredient(repoPath, pack)).split('\n').filter(Boolean);
+    for (const line of lines) out.push(JSON.parse(line.split('\t')[0]) as Record<string, unknown>);
   }
-  return { fold: fold(events), events, refused };
+  return out;
 };

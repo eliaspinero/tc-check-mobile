@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { loadSession, type Session } from '../session/loadSession';
-import { decide } from '../session/journal';
+import { decide } from '../session/decide';
 import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
@@ -220,11 +220,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
     if (!session.pin) return;
     setStatus({ state: 'saving' });
     try {
-      await decide(
-        { repoPath, tool, book, item, patch, resource: { repoPath: session.pin.repoPath, version: session.pin.version, sha: session.pin.sha, languageSet: session.rung ?? undefined } },
-        source,
-        engine,
-      );
+      await decide({ repoPath, tool, item, patch, pin: session.pin }, source);
       onDecided(await loadSession(repoPath, tool, book, source, engine));
       setTapped(null);
       setStatus(IDLE);
@@ -232,7 +228,7 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
       setStatus({ state: 'failed', message: (e as Error).message });
     }
   };
-  const mark = (button: 'valid' | 'invalid') => record(engine.journal.patch(button, targetText, [...chosen]));
+  const mark = (button: 'valid' | 'invalid') => record(engine.patch(button, targetText, [...chosen]));
   const decided = decisionOf(engine, item);
   const last = index === total - 1;
   const after = last ? null : refOf(session.items[index + 1]);

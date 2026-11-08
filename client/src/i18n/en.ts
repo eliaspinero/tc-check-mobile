@@ -75,7 +75,7 @@ export const en = {
   valid: 'Valid',
   invalid: 'Invalid',
   saving: 'Saving…',
-  needsJournal: 'Open this project once in translationCore to record decisions here.',
+  needsJournal: 'This project is not in the new translationCore’s format yet. Move it to the new translationCore on a computer to record decisions here.',
   sourceMissing: "This source isn't on this device.",
   verseMissing: 'This source has no text for this verse.',
   articleMissing: 'This article is not in the installed translationWords resource.',

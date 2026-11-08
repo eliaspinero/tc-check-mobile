@@ -11,6 +11,10 @@ use std::path::Path;
 #[path = "../../../shell/src-tauri/src/limits.rs"]
 mod limits;
 
+// The shell's own decision routes (#48), the same file.
+#[path = "../../../shell/src-tauri/src/tc.rs"]
+mod tc;
+
 #[rocket::main]
 async fn main() -> Result<(), rocket::Error> {
     let state = env::args().nth(1).expect("usage: tc-check-rig <state dir>");
@@ -34,6 +38,8 @@ async fn main() -> Result<(), rocket::Error> {
         "local_setup_path": format!("{}setup/local_setup.json", resources),
         "app_resources_path": resources,
     });
-    limits::with_upload_limits(pankosmia_web::rocket(conf)).launch().await?;
+    // As the shell does: the store's application data beside Pankosmia's repositories.
+    let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos")).expect("the tc store starts");
+    tc::mount(limits::with_upload_limits(pankosmia_web::rocket(conf)), projects).launch().await?;
     Ok(())
 }

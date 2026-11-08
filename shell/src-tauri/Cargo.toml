@@ -34,10 +34,18 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = "1.43.0"
-rocket = "0.5.1"
+rocket = { version = "0.5.1", features = ["json"] }
+thiserror = "2"
+# The Rust translationCore 4's store, which records the decisions (src/tc.rs, #48). The rig pins the same.
+tc-journal = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
+tc-store = { git = "https://github.com/unfoldingWord/translationCore4", rev = "c0d6e0e8e5028dc977c77c5e8b2109d580cfda60" }
 tauri-plugin-fs = "2"
 include_dir = "0.7"
 tauri-plugin-http = "2"
 tauri-plugin-log = "2"
 reqwest = { version = "0.13.4", features = ["json"] }
 
+
+# machine-uid 0.6.0 has no Android branch (vendor/machine-uid/PROVENANCE.md).
+[patch.crates-io]
+machine-uid = { path = "../../vendor/machine-uid" }

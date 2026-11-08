@@ -77,7 +77,7 @@ export const es: Strings = {
   valid: 'Válido',
   invalid: 'Inválido',
   saving: 'Guardando…',
-  needsJournal: 'Abre este proyecto una vez en translationCore para registrar decisiones aquí.',
+  needsJournal: 'Este proyecto aún no está en el formato del nuevo translationCore. Pásalo al nuevo translationCore en una computadora para registrar decisiones aquí.',
   sourceMissing: 'Esta fuente no está en este dispositivo.',
   verseMissing: 'Esta fuente no tiene texto para este versículo.',
   articleMissing: 'Este artículo no está en el recurso translationWords instalado.',
