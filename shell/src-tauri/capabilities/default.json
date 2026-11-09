@@ -20,7 +20,11 @@
         }
       ]
     },
-    "log:default"
+    "log:default",
+    "allow-wait-for-server",
+    "allow-token-keep",
+    "allow-token-read",
+    "allow-token-forget"
   ],
   "remote": {
     "urls": [
