@@ -52,8 +52,11 @@ async fn main() -> Result<(), rocket::Error> {
         .map(|url| url.parse().expect("TC_CHECK_DOOR43 is a Door43 URL"));
     let projects = tc::Projects::start(&state.join("tc"), state.join("pankosmia_repos"), door43)
         .expect("the tc store starts");
+    // Uploads go through a folder of the rig's own, as the shell gives the phone's (#54).
+    let uploads = state.join("uploads");
+    std::fs::create_dir_all(&uploads).expect("create the uploads dir");
     tc::mount(
-        limits::with_upload_limits(pankosmia_web::rocket(conf)),
+        limits::with_uploads(pankosmia_web::rocket(conf), &uploads),
         projects,
     )
     .launch()

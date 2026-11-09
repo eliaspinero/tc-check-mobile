@@ -111,7 +111,11 @@ fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     // The Rust tC4's store, for the decisions (tc.rs): its application data beside Pankosmia's
     // repositories, which live in the home folder set above.
     let projects = tc::Projects::start(&data_dir.join("tc"), data_dir.join("pankosmia_repos"), None)?;
-    let rocket = tc::mount(limits::with_upload_limits(pankosmia_web::rocket(conf)), projects).attach(RemoveFrameOptions);
+    // Rocket writes each upload (a resource zip) to a temporary file first: in the app's own cache,
+    // since Android lets no app write the system's temp directory (#54).
+    let uploads = app.path().app_cache_dir()?.join("uploads");
+    std::fs::create_dir_all(&uploads)?;
+    let rocket = tc::mount(limits::with_uploads(pankosmia_web::rocket(conf), &uploads), projects).attach(RemoveFrameOptions);
 
     let rocket_fut = rocket.launch();
     let _ = tauri::async_runtime::spawn(async move {
