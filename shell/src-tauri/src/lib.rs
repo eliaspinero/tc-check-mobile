@@ -7,6 +7,7 @@ use include_dir::{include_dir, Dir};
 use pankosmia_web;
 use ping::wait_for_server;
 use serde_json::json;
+use std::path::Path;
 use tauri::App;
 use tauri::Manager;
 use rocket::fairing::{Fairing, Info, Kind};
@@ -60,7 +61,21 @@ fn refresh_resources(
     std::fs::write(stamp_file, stamp)
 }
 
+/// Makes `dir` the process's temporary directory, creating it. Android lets no app write the
+/// system's one (/data/local/tmp), and every temporary file goes through it: Rocket's uploads,
+/// pankosmia-web's unzipping of a resource, any library's (#54). `TMPDIR` is read on Android and
+/// the other Unixes, `TMP` and `TEMP` on Windows.
+fn use_temp_dir(dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    for name in ["TMPDIR", "TMP", "TEMP"] {
+        std::env::set_var(name, dir);
+    }
+    Ok(())
+}
+
 fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    // First, before anything writes a temporary file.
+    use_temp_dir(&app.path().app_cache_dir()?.join("tmp"))?;
     let data_dir = app.path().app_data_dir()?;
     let dest_resources = data_dir.join("pankosmia_resources");
 
@@ -111,11 +126,7 @@ fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     // The Rust tC4's store, for the decisions (tc.rs): its application data beside Pankosmia's
     // repositories, which live in the home folder set above.
     let projects = tc::Projects::start(&data_dir.join("tc"), data_dir.join("pankosmia_repos"), None)?;
-    // Rocket writes each upload (a resource zip) to a temporary file first: in the app's own cache,
-    // since Android lets no app write the system's temp directory (#54).
-    let uploads = app.path().app_cache_dir()?.join("uploads");
-    std::fs::create_dir_all(&uploads)?;
-    let rocket = tc::mount(limits::with_uploads(pankosmia_web::rocket(conf), &uploads), projects).attach(RemoveFrameOptions);
+    let rocket = tc::mount(limits::with_upload_limits(pankosmia_web::rocket(conf)), projects).attach(RemoveFrameOptions);
 
     let rocket_fut = rocket.launch();
     let _ = tauri::async_runtime::spawn(async move {
@@ -146,6 +157,14 @@ mod tests {
     use include_dir::include_dir;
 
     static RESOURCES: Dir = include_dir!("$CARGO_MANIFEST_DIR/pankosmia_resources/lib/setup");
+
+    #[test]
+    fn temporary_files_go_to_the_given_directory() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("target").join("temp-dir-test");
+        use_temp_dir(&dir).expect("the directory is made");
+        assert!(dir.is_dir());
+        assert_eq!(std::env::temp_dir(), dir);
+    }
 
     #[test]
     fn an_update_replaces_the_resources_of_the_build_before() {
