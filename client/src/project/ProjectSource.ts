@@ -11,7 +11,8 @@ export interface DecisionToRecord {
   contextId: unknown;
   category: string;
   resource: { repoPath: string; sha: string };
-  status: 'valid' | 'invalid';
+  /** Absent when only the words changed: the status stays as it is. */
+  status?: 'valid' | 'invalid';
   selections: unknown[] | false;
   nothingToSelect: boolean;
 }

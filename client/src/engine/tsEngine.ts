@@ -13,6 +13,10 @@ export const tsEngine: CheckingEngine = {
     const selections = selectionsFromTokens(verseText, [...tapped].sort((a, b) => a - b));
     return { selections: selections.length ? selections : false, nothingToSelect: selections.length === 0, status: 'valid' };
   },
+  select: (verseText, tapped, status) => {
+    const selections = selectionsFromTokens(verseText, [...tapped].sort((a, b) => a - b));
+    return { selections: selections.length ? selections : false, nothingToSelect: status === 'valid' && selections.length === 0 };
+  },
   projectFrame: (repoPath, io) =>
     resolveProjectFrame(repoPath, {
       store: { readVersification: () => io.readVersification() },
