@@ -6,7 +6,10 @@ import type { BrowserContext } from '@playwright/test';
 
 export const QA_SERVER = 'https://qa.door43.org';
 
-export interface FakeRepo { owner: string; name: string; description?: string }
+/** A repository the fake lists. By default it is a project in the Rust tC4's format that the checker may push to,
+ * so a journey's projects show in the list's first part; `format: 'other'` or `canPush: false` puts it under
+ * "Other projects" (#56). */
+export interface FakeRepo { owner: string; name: string; description?: string; format?: 'tc' | 'other'; canPush?: boolean }
 export interface FakeDoor43Options {
   user: { username: string; password: string };
   organizations?: string[];
@@ -38,6 +41,7 @@ export const fakeDoor43 = async (context: BrowserContext, opts: FakeDoor43Option
     owner: { login: r.owner },
     description: r.description ?? '',
     clone_url: `${QA_SERVER}/${r.owner}/${r.name}.git`,
+    permissions: { admin: false, push: r.canPush ?? true, pull: true },
   });
 
   await context.route(`${QA_SERVER}/api/v1/**`, async (route) => {
@@ -50,6 +54,15 @@ export const fakeDoor43 = async (context: BrowserContext, opts: FakeDoor43Option
     const p = url.pathname.replace(/^\/api\/v1/, '');
     const u = opts.user.username;
     if (method === 'GET' && p === '/user') return route.fulfill(json(200, { login: u }));
+    const tcFile = /^\/repos\/([^/]+)\/([^/]+)\/contents\/ingredients\/tc\/project\.json$/.exec(p);
+    if (method === 'GET' && tcFile) {
+      const repo = (opts.repos ?? []).find((r) => r.owner === decodeURIComponent(tcFile[1]) && r.name === decodeURIComponent(tcFile[2]));
+      return route.fulfill(
+        repo && (repo.format ?? 'tc') === 'tc'
+          ? json(200, { type: 'file', name: 'project.json', path: 'ingredients/tc/project.json' })
+          : json(404, { message: 'GetContentsOrList', url: `${QA_SERVER}/api/swagger` }),
+      );
+    }
     if (method === 'GET' && p === `/users/${u}/tokens`)
       return route.fulfill(json(200, [...state.tokens].map(([id, t]) => ({ id, name: t.name, token_last_eight: t.sha1.slice(-8) }))));
     const del = new RegExp(`^/users/${u}/tokens/(\\d+)$`).exec(p);

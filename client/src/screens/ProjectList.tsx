@@ -35,6 +35,13 @@ const localPathOf = (local: string[], host: string, repo: Door43Repo): string | 
 /** A project's key in the opening and cloning states: `owner/name`. */
 const keyOf = (repo: Door43Repo): string => `${repo.owner}/${repo.name}`;
 
+/** Whether each repository is in the Rust tC4's format, asked of Door43 once per run (#56). */
+const tcFormats = new Map<string, Promise<boolean>>();
+/** The answers that have landed, by `host/owner/name`, so a list shown again sorts at once. */
+const knownFormats = new Map<string, boolean>();
+/** How many repositories are asked about at once. */
+const AT_ONCE = 6;
+
 /** Sign out takes a second tap within 4 s: signed out with no internet, the checker cannot sign in again until online. */
 function SignOut({ onSignOut }: { onSignOut: () => void }) {
   const [armed, setArmed] = useState(false);
@@ -59,28 +66,75 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
   // What the screen is doing besides listing: nothing, opening one project (`owner/name`), showing why the
   // list or an opening failed (over the list, which stays), or saying the opened repo is not a tC project.
   const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'notTc' } | { state: 'tc4x' }>>(IDLE);
+  // Which listed projects the checker can check here (#56): in the Rust tC4's format and theirs to change. A
+  // project not known yet is in neither part; one that is not is under "Other projects", closed at first.
+  const [usable, setUsable] = useState<ReadonlyMap<string, boolean>>(() => {
+    const known = new Map<string, boolean>();
+    for (const r of kept<Door43Repo[]>(listKey) ?? []) {
+      const isTc = r.canPush === false ? false : knownFormats.get(`${host}/${keyOf(r)}`);
+      if (isTc !== undefined) known.set(keyOf(r), isTc);
+    }
+    return known;
+  });
+  const [showOthers, setShowOthers] = useState(false);
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
-    // Door43's answer replaces the list, but not under a tap: while a project opens, it waits for the opening to end.
-    const list = (got: Door43Repo[]) => {
-      keepNow(listKey, got);
-      if (openingNow.current) waiting.current = got;
-      else setRepos(got);
+    let current = true;
+    // Door43 is asked about each repository the checker may change, a few at a time; the rest need no question.
+    // A question that fails leaves the project shown: nothing is hidden for want of an answer. Answers add to
+    // what is known, so rows already on screen keep their place while a new list is sorted.
+    const sort = (list: Door43Repo[]) => {
+      setUsable((old) => new Map([...old, ...list.filter((r) => r.canPush === false).map((r): [string, boolean] => [keyOf(r), false])]));
+      const asked = list.filter((r) => r.canPush !== false);
+      let next = 0;
+      const worker = async () => {
+        while (current && next < asked.length) {
+          const repo = asked[next++];
+          const key = `${host}/${keyOf(repo)}`;
+          if (!tcFormats.has(key))
+            tcFormats.set(
+              key,
+              api.isTcProject(session, repo).then(
+                (isTc) => {
+                  knownFormats.set(key, isTc);
+                  return isTc;
+                },
+                () => true,
+              ),
+            );
+          const isTc = await tcFormats.get(key)!;
+          if (current) setUsable((old) => new Map(old).set(keyOf(repo), isTc));
+        }
+      };
+      void Promise.all(Array.from({ length: AT_ONCE }, worker));
     };
-    api.listRepos(session).then(list, async (e: unknown) => {
-      setStatus({ state: 'failed', message: t('offlineProjects', { error: door43ErrorText(e) }) });
-      // A list kept from earlier in this run stays.
-      if (kept(listKey)) return;
-      const prefix = `${host}/`.toLowerCase();
-      const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
-      setRepos(
-        local.map((p) => {
+    // Door43's answer replaces the list, but not under a tap: while a project opens, it waits for the opening to end.
+    api.listRepos(session).then(
+      (list) => {
+        keepNow(listKey, list);
+        sort(list);
+        if (openingNow.current) waiting.current = list;
+        else setRepos(list);
+      },
+      async (e: unknown) => {
+        setStatus({ state: 'failed', message: t('offlineProjects', { error: door43ErrorText(e) }) });
+        // A list kept from earlier in this run stays.
+        if (kept(listKey)) return;
+        const prefix = `${host}/`.toLowerCase();
+        const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
+        const list = local.map((p) => {
           const [owner, name] = p.slice(prefix.length).split('/');
-          return { owner, name, description: '' };
-        }),
-      );
-    });
+          return { owner, name, description: '', canPush: null };
+        });
+        // Offline, the projects on this device show as they did: all of them, unasked.
+        setRepos(list);
+        setUsable(new Map(list.map((r) => [keyOf(r), true])));
+      },
+    );
+    return () => {
+      current = false;
+    };
   }, [api, session, source, host, listKey]);
 
   // Opening clears the offline notice, as any earlier failure: what shows next is about this project.
@@ -129,6 +183,11 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     }
   };
   const opening = status.state === 'opening' ? status.key : null;
+  // The list in two parts (#56): the projects the checker can check here first, the others behind a control.
+  const ready = repos?.filter((r) => usable.get(keyOf(r)) === true) ?? [];
+  const others = repos?.filter((r) => usable.get(keyOf(r)) === false) ?? [];
+  const total = repos?.length ?? 0;
+  const finding = total - ready.length - others.length;
 
   if (status.state === 'tc4x')
     return (
@@ -152,7 +211,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       <ErrorLine text={failure(status)} />
       {repos === null && status.state !== 'failed' && <Skeleton shape="projects" label={t('loadingProjects')} />}
       {repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
-      {repos?.map((r, i) => (
+      {ready.map((r, i) => (
         <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
           <span className="project-text">
             <span className="project-name">{r.name}</span>
@@ -164,6 +223,26 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
           <span className="muted">{opening === keyOf(r) || cloning.has(keyOf(r)) ? t('opening') : '›'}</span>
         </button>
       ))}
+      {finding > 0 && <p className="muted" data-testid="finding-projects">{t('findingProjects', { done: total - finding, total })}</p>}
+      {finding === 0 && ready.length === 0 && others.length > 0 && <p className="muted">{t('noUsableProjects')}</p>}
+      {others.length > 0 && (
+        <button className="link" aria-expanded={showOthers} onClick={() => setShowOthers(!showOthers)}>
+          {t('otherProjects', { count: others.length })}
+        </button>
+      )}
+      {showOthers &&
+        others.map((r, i) => (
+          <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
+            <span className="project-text">
+              <span className="project-name">{r.name}</span>
+              <span className="muted">
+                {r.owner}
+                {r.description ? ` · ${r.description}` : ''}
+              </span>
+            </span>
+            <span className="muted">{opening === keyOf(r) || cloning.has(keyOf(r)) ? t('opening') : '›'}</span>
+          </button>
+        ))}
     </main>
   );
 }

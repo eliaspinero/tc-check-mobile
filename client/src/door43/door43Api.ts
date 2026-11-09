@@ -15,6 +15,8 @@ export interface Door43Repo {
   owner: string;
   name: string;
   description: string;
+  /** The checker may push to it (Door43's `permissions.push`); null when not known (offline, from the device). */
+  canPush: boolean | null;
 }
 
 export class Door43ApiError extends Error {
@@ -43,7 +45,7 @@ const basic = (login: string, password: string): string => {
   return `Basic ${btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(''))}`;
 };
 
-type RepoRow = { name: string; owner: { login: string }; description?: string };
+type RepoRow = { name: string; owner: { login: string }; description?: string; permissions?: { push?: boolean } };
 
 export const door43Api = (server: string = DCS_SERVER, fetchFn: typeof fetch = (...a) => fetch(...a)) => {
   const request = async (route: string, authorization: string, init: { method?: string; body?: unknown } = {}): Promise<Response> => {
@@ -70,7 +72,7 @@ export const door43Api = (server: string = DCS_SERVER, fetchFn: typeof fetch = (
       if (rows.length < 50) return out;
     }
   };
-  const toRepo = (r: RepoRow): Door43Repo => ({ owner: r.owner.login, name: r.name, description: r.description ?? '' });
+  const toRepo = (r: RepoRow): Door43Repo => ({ owner: r.owner.login, name: r.name, description: r.description ?? '', canPush: r.permissions?.push ?? null });
 
   return {
     /** Sign in with a login (username or email) and password; returns the session with a fresh token. */
@@ -102,6 +104,17 @@ export const door43Api = (server: string = DCS_SERVER, fetchFn: typeof fetch = (
         seen.add(key);
         return true;
       });
+    },
+    /** True when the repository is a project in the Rust tC4's format (it has `ingredients/tc/project.json`). */
+    async isTcProject(session: Door43Session, repo: Door43Repo): Promise<boolean> {
+      const path = `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/contents/ingredients/tc/project.json`;
+      try {
+        await request(path, `token ${session.token}`);
+        return true;
+      } catch (e) {
+        if (e instanceof Door43ApiError && e.status === 404) return false;
+        throw e;
+      }
     },
   };
 };
