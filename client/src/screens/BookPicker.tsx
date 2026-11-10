@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { openExternal } from '../device/tauri';
 import type { CheckingEngine, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { scopeOf, type Session } from '../session/loadSession';
@@ -62,9 +63,26 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
     };
   }, [books, repoPath, source, engine]);
 
+  // Every project here was opened from Door43, so its repo path is `<host>/<owner>/<repo>`.
+  const door43Url = `https://${repoPath}`;
+  // In the app, the phone's browser opens the page, not the app's own window; in a plain browser the link opens it.
+  const openOnDoor43 = (e: MouseEvent) => {
+    if (openExternal(door43Url)) e.preventDefault();
+  };
+
   return (
     <main className="screen">
-      <TopBar brand title={t('booksTitle')} sub={repoPath.split('/').slice(-2).join('/')} onBack={onBack} />
+      <TopBar
+        brand
+        title={t('booksTitle')}
+        sub={repoPath.split('/').slice(-2).join('/')}
+        onBack={onBack}
+        actions={
+          <a href={door43Url} target="_blank" rel="noreferrer" onClick={openOnDoor43}>
+            {t('openOnDoor43')}
+          </a>
+        }
+      />
       <ErrorLine text={failure(scope)} />
       {scope.state === 'loading' && <Skeleton shape="books" label={t('loadingBooks')} />}
       {books?.map((book, i) => (

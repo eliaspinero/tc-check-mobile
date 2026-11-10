@@ -46,6 +46,7 @@ export const en = {
 
   booksTitle: 'Choose a book',
   loadingBooks: 'Loading the books…',
+  openOnDoor43: 'Open on Door43',
   words: 'Words',
   notes: 'Notes',
   bookToolProgress: '{name}, {decided} of {total}',

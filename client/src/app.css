@@ -7,19 +7,19 @@ label { display: flex; flex-direction: column; gap: var(--space-1); font-size: v
 /* 16 px in fields, so a phone does not zoom in on focus. */
 input { font-family: inherit; font-size: var(--fs-title-sm); min-height: var(--space-20); padding: var(--space-4); border: var(--stroke) solid var(--border-input); border-radius: var(--radius-input); background: var(--surface-card); color: var(--text-body); box-sizing: border-box; }
 /* Every button is a 44 px touch target, whatever tC4's desktop controls measure. */
-button { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
+button, .topbar-actions a { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
 /* tC4's Inspire fill carries white text at 2.6:1; its 700 step keeps the Inspire hue and passes AA (5.6:1). */
 button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
 /* Under the pointer a button darkens a little, and a little more while pressed (a finger gets the press only): a dark
    layer over its fill and under its text, shown by its opacity so it fades. Its own colours never change. */
-button { position: relative; isolation: isolate; }
-button::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--uw-black); opacity: 0; pointer-events: none; }
+button, .topbar-actions a { position: relative; isolation: isolate; }
+button::after, .topbar-actions a::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--uw-black); opacity: 0; pointer-events: none; }
 @media (hover: hover) {
-  button:enabled:hover::after { opacity: 0.08; }
+  button:enabled:hover::after, .topbar-actions a:hover::after { opacity: 0.08; }
   /* On the Ocean sheet the ground is already dark, so the layer needs more to show. */
   .bottombar .decide button:enabled:hover::after { opacity: 0.22; }
 }
-button:enabled:active::after { opacity: 0.14; }
+button:enabled:active::after, .topbar-actions a:active::after { opacity: 0.14; }
 .bottombar .decide button:enabled:active::after { opacity: 0.32; }
 .error { color: var(--text-invalid); font-size: var(--fs-ui-md); }
 .row { display: flex; justify-content: space-between; align-items: center; padding: var(--space-5) var(--space-1); border-bottom: var(--stroke-hair) solid var(--border); }
@@ -53,7 +53,9 @@ mark.hl { background: var(--tc-highlight-soft); color: inherit; border-radius: v
 .topbar h1 { margin: 0; font-size: var(--fs-title); letter-spacing: var(--track-17); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-sub { font-size: var(--fs-ui-sm); color: var(--text-tertiary); }
 .topbar-actions { display: flex; gap: var(--space-3); }
-.topbar-actions button { padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
+.topbar-actions button, .topbar-actions a { padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
+/* A link there (to a page outside the app) is drawn as the bar's buttons are. */
+.topbar-actions a { display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; white-space: nowrap; }
 button.icon { border: none; background: transparent; font-size: 22px; line-height: 1; min-width: var(--space-20); padding: var(--space-2) var(--space-4); }
 button.title-button { border: none; border-radius: var(--radius-sm); background: transparent; padding: 0; font: inherit; color: inherit; text-align: left; max-width: 100%; }
 button.danger { border-color: var(--border-danger); color: var(--text-invalid); }
@@ -211,7 +213,7 @@ button:disabled { opacity: 0.45; }
   .peek .help-more { transition: none; }
   .bottombar .progress span { transition: transform var(--dur-panel) var(--ease-standard); }
   .bottombar .decide button { transition: opacity var(--dur-hover) var(--ease-standard); }
-  button::after { transition: opacity var(--dur-hover) var(--ease-standard); }
+  button::after, .topbar-actions a::after { transition: opacity var(--dur-hover) var(--ease-standard); }
   .bottombar .decide button::before, .bottombar::before, .bottombar::after { transition: opacity var(--dur-panel) var(--ease-standard); }
   /* Closing fades out in half the time opening takes; the element stays drawn until the fade ends (allow-discrete). */
   .sheet-backdrop { transition: opacity calc(var(--dur-panel) / 2) var(--ease-standard), display calc(var(--dur-panel) / 2) allow-discrete; }

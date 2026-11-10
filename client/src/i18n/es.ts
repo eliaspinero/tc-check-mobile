@@ -48,6 +48,7 @@ export const es: Strings = {
 
   booksTitle: 'Elige un libro',
   loadingBooks: 'Cargando los libros…',
+  openOnDoor43: 'Abrir en Door43',
   words: 'Palabras',
   notes: 'Notas',
   bookToolProgress: '{name}, {decided} de {total}',
