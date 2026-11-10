@@ -3,7 +3,7 @@
 // from the packs; the list follows at once; nothing is lost when the app closes right after; a project not in that
 // format offers no decision.
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
-import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, readIngredient, rigUp, writeIngredient } from './helpers/rig';
+import { NEEDS_RIG, SAMPLE_PROJECT, checkpoint, placeRepo, readIngredient, rigUp, writeIngredient } from './helpers/rig';
 import { openProject } from './helpers/session';
 import { changesOf, placeTcProject } from './helpers/journal';
 
@@ -24,8 +24,10 @@ type Change = { device: string; seq: number; record: { check?: { key: { checkId:
 /** The devices of the seeded project: tC4 desktop's work, before the phone decides anything. */
 let seeded: Set<string>;
 /** The phone's own check changes, in the order it wrote them (its `seq`; packs are named by hash): those of every
- * device the seed did not have. */
+ * device the seed did not have. The project is checkpointed first, as leaving it does (#59): a decision waits in the
+ * store's pending log until then. */
 const phoneChanges = async (): Promise<{ devices: string[]; checkIds: string[] }> => {
+  await checkpoint(PROJECT);
   const mine = ((await changesOf(PROJECT)) as unknown as Change[]).filter((c) => !seeded.has(c.device) && c.record.check).sort((a, b) => a.seq - b.seq);
   return { devices: [...new Set(mine.map((c) => c.device))], checkIds: mine.map((c) => c.record.check!.key.checkId) };
 };

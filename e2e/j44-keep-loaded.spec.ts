@@ -33,8 +33,10 @@ const reads = (page: Page) => {
   return seen;
 };
 /** The reads made from `from` on that were made before it: what the app holds is never asked for again on the way back
- * (Door43's list may be, behind the kept one). Reads of what was never read yet are fine. */
-const repeated = (all: string[], from: number) => all.slice(from).filter((r) => !r.startsWith('GET door43') && all.slice(0, from).includes(r));
+ * (Door43's list may be, behind the kept one). Reads of what was never read yet are fine. A checkpoint is not a read:
+ * leaving a project checkpoints it (#59). */
+const repeated = (all: string[], from: number) =>
+  all.slice(from).filter((r) => !r.startsWith('GET door43') && !r.startsWith('POST /api/tc/checkpoint/') && all.slice(0, from).includes(r));
 /** Waits until the books screen shows every book and tool counted. */
 const allCounted = (page: Page) =>
   expect.poll(async () => {

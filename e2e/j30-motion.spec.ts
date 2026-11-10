@@ -188,7 +188,7 @@ test.describe('with motion', () => {
     const repos = Array.from({ length: 11 }, (_, i) => `project_${String(i + 1).padStart(2, '0')}`);
     await signIn(page, context, repos);
     await expect(page.getByRole('button', { name: /^project_11/ })).toBeVisible();
-    expect(await motionOf(page, 'button.project')).toEqual(staggered(11));
+    expect(await motionOf(page, '.project-row')).toEqual(staggered(11));
   });
 
   test('j30: books, verses and checks enter top to bottom, and a Sync does not make them enter again', async ({ page, context }) => {

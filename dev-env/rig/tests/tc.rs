@@ -97,12 +97,17 @@ fn packs(repos: &Path, name: &str) -> Vec<PathBuf> {
     out
 }
 
+fn pending(repos: &Path, name: &str) -> usize {
+    std::fs::read_dir(repos.join(name).join(".tc/pending")).map_or(0, Iterator::count)
+}
+
 #[test]
-fn a_decision_is_sealed_into_a_pack_and_the_decision_file_follows() {
+fn a_decision_is_saved_pending_and_the_checkpoint_seals_it_and_writes_the_decision_file() {
     let root = temp("decide");
     let repos = root.join("repos");
     seeded(&repos, "sample_tc");
     let before = packs(&repos, "sample_tc");
+    let file_before = decisions(&repos, "sample_tc");
     let projects =
         Projects::start(&root.join("app"), repos.clone(), None).expect("the store starts");
 
@@ -117,12 +122,22 @@ fn a_decision_is_sealed_into_a_pack_and_the_decision_file_follows() {
         )
         .expect("the decision is recorded");
 
+    // #59: the decision is on the disk, in the pending log, when decide returns; the seal, the
+    // decision file and the commit wait for the checkpoint.
+    assert!(pending(&repos, "sample_tc") > 0, "the decision is pending");
+    assert_eq!(packs(&repos, "sample_tc"), before, "no pack yet");
+    assert_eq!(
+        decisions(&repos, "sample_tc"),
+        file_before,
+        "the file waits"
+    );
+
+    projects
+        .checkpoint(Path::new("sample_tc"))
+        .expect("the checkpoint");
     let after = packs(&repos, "sample_tc");
     assert_eq!(after.len(), before.len() + 1, "one new pack: {after:?}");
-    assert!(
-        std::fs::read_dir(repos.join("sample_tc/.tc/pending")).map_or(true, |d| d.count() == 0),
-        "nothing left pending"
-    );
+    assert_eq!(pending(&repos, "sample_tc"), 0, "nothing left pending");
     let file = decisions(&repos, "sample_tc");
     let d = the_decision(&file, "a9p2");
     assert_eq!(
@@ -146,6 +161,9 @@ fn another_installation_reads_the_decision_from_the_packs() {
             &decide_body(1, "invalid", json!(false)),
         )
         .expect("the decision is recorded");
+    phone
+        .checkpoint(Path::new("sample_tc"))
+        .expect("the checkpoint");
     // The decision file goes; a second installation (tC4 desktop) writes it again from the fold.
     std::fs::remove_file(repos.join("sample_tc/ingredients/checking/translationWords/TIT.json"))
         .expect("removed");
@@ -182,6 +200,10 @@ fn a_project_of_the_old_format_is_refused_and_left_as_it_was() {
         Projects::start(&root.join("app"), repos.clone(), None).expect("the store starts");
     let refused = projects.decide(Path::new("old"), &decide_body(1, "valid", json!(false)));
     assert!(matches!(refused, Err(DecideError::NotTc)), "{refused:?}");
+    // The client checkpoints every project it opens (#59): one of the old format is left alone.
+    projects
+        .checkpoint(Path::new("old"))
+        .expect("nothing to checkpoint");
     assert!(!old.join("ingredients/tc").exists(), "nothing was written");
     assert!(!old.join(".tc").exists(), "nothing was written");
     std::fs::remove_dir_all(&root).ok();
@@ -200,6 +222,9 @@ fn a_clone_without_the_local_state_opens_and_takes_a_decision() {
     projects
         .decide(Path::new("cloned"), &decide_body(1, "valid", json!(false)))
         .expect("the decision is recorded");
+    projects
+        .checkpoint(Path::new("cloned"))
+        .expect("the checkpoint");
     assert_eq!(
         the_decision(&decisions(&repos, "cloned"), "a9p2")["contextId"]["checkId"],
         "a9p2"
@@ -249,6 +274,9 @@ fn a_check_on_a_chapter_front_a_lettered_verse_or_a_verse_list_is_recorded() {
             .decide(Path::new("sample_tc"), &decide_at(verse))
             .unwrap_or_else(|e| panic!("1:{verse}: {e}"));
     }
+    projects
+        .checkpoint(Path::new("sample_tc"))
+        .expect("the checkpoint seals them");
     std::fs::remove_dir_all(&root).ok();
 }
 
@@ -442,6 +470,9 @@ fn words_chosen_after_valid_are_saved_and_the_check_stays_valid() {
     projects
         .decide(Path::new("sample_tc"), &select_body(1, words.clone()))
         .expect("the words are recorded");
+    projects
+        .checkpoint(Path::new("sample_tc"))
+        .expect("the checkpoint");
 
     let file = decisions(&repos, "sample_tc");
     let d = the_decision(&file, "a9p2");
@@ -462,9 +493,57 @@ fn words_chosen_on_a_check_not_decided_are_saved_without_a_status() {
     projects
         .decide(Path::new("sample_tc"), &select_body(1, words.clone()))
         .expect("the words are recorded");
+    projects
+        .checkpoint(Path::new("sample_tc"))
+        .expect("the checkpoint");
 
     let file = decisions(&repos, "sample_tc");
     let d = the_decision(&file, "a9p2");
     assert_eq!(d["selections"], words, "{d}");
     assert_eq!(d["status"], before, "the status is not set: {d}");
+}
+
+#[test]
+fn decisions_left_pending_when_the_app_was_closed_are_sealed_by_the_next_checkpoint() {
+    // The phone closes the app (or the system ends it) before any checkpoint: what decide saved
+    // is in the pending log. The next run checkpoints the project when it is opened (#59).
+    let root = temp("killed");
+    let repos = root.join("repos");
+    seeded(&repos, "sample_tc");
+    let before = packs(&repos, "sample_tc").len();
+    let first_run =
+        Projects::start(&root.join("app"), repos.clone(), None).expect("the store starts");
+    first_run
+        .decide(
+            Path::new("sample_tc"),
+            &decide_body(1, "invalid", json!(false)),
+        )
+        .expect("the decision is recorded");
+    // What a killed process leaves: the folder as it is, without the lock the system releases.
+    copy_without_lock(&repos.join("sample_tc"), &repos.join("after_kill"));
+    drop(first_run);
+
+    let next_run =
+        Projects::start(&root.join("app2"), repos.clone(), None).expect("the store starts");
+    next_run
+        .checkpoint(Path::new("after_kill"))
+        .expect("the checkpoint");
+    assert_eq!(packs(&repos, "after_kill").len(), before + 1);
+    assert_eq!(pending(&repos, "after_kill"), 0);
+    let file = decisions(&repos, "after_kill");
+    assert_eq!(the_decision(&file, "a9p2")["status"], "invalid");
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// [`copy_dir`] without `.tc/lock`, which the open project holds.
+fn copy_without_lock(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).expect("a folder");
+    for entry in std::fs::read_dir(from).expect("a folder").flatten() {
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_without_lock(&entry.path(), &target);
+        } else if entry.file_name() != "lock" {
+            std::fs::copy(entry.path(), &target).expect("a copy");
+        }
+    }
 }

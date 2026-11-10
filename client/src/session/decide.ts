@@ -1,5 +1,6 @@
-// A decision on this phone, recorded by the Rust tC4's store in the shell (shell/src-tauri/src/tc.rs). The
-// project's packs are the record; `checking/<tool>/<BOOK>.json` is written again from them, and the list reads it.
+// A decision on this phone, recorded by the Rust tC4's store in the shell (shell/src-tauri/src/tc.rs). It is saved in
+// the project's pending log and the screen applies it in memory (withDecision.ts); the project's checkpoint seals it
+// into a pack and writes `checking/<tool>/<BOOK>.json` again, which the lists read (#59).
 import type { CheckItem, DecisionPatch, ResourcePin, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource, TcSyncResult } from '../project/ProjectSource';
 
@@ -42,10 +43,20 @@ export const decide = ({ repoPath, tool, item, patch, pin }: DecideInput, source
   return sent;
 };
 
+/** Every decision sent to the project so far, once each is answered. */
+const landed = (repoPath: string) => Promise.allSettled([...(inFlight.get(repoPath) ?? [])]);
+
 /** Sync a project in the Rust tC4's format, once every decision sent before it is recorded. */
 export const syncTc = async (repoPath: string, as: { username: string; token: string }, source: ProjectSource): Promise<TcSyncResult> => {
-  await Promise.allSettled([...(inFlight.get(repoPath) ?? [])]);
+  await landed(repoPath);
   return source.syncTc(repoPath, as);
+};
+
+/** Checkpoint a project, once every decision sent before it is recorded: when the checker leaves it or opens it,
+ * and when the app goes to the background (#59). */
+export const checkpoint = async (repoPath: string, source: ProjectSource): Promise<void> => {
+  await landed(repoPath);
+  return source.checkpoint(repoPath);
 };
 
 /** True when the project is in tC4 4.x's format (a journal and no Rust tC4 project file): the team moves it to the
