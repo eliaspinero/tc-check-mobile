@@ -5,6 +5,7 @@
 // `tc-system-bars` event says they changed. client/src/systemBars.ts reads them.
 package org.unfoldingword.tccheck
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -16,6 +17,13 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+  }
+
+  // The manifest keeps the activity when the theme changes (configChanges has uiMode), so enableEdgeToEdge() runs again to
+  // give the bars' icons the new theme's colour: dark on the light theme, light on the dark one.
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    enableEdgeToEdge()
   }
 
   // wry calls this before the WebView loads its first page, so the bridge is there from the start.
