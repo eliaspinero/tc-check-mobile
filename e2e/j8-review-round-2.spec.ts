@@ -41,10 +41,12 @@ test('j8: reopened on a slow connection, the app never shows the sign-in form wh
     await route.fallback();
   });
   await page.reload();
-  await expect(page.getByText('Signing you in…')).toBeVisible();
+  // The username is kept beside the token (#44): the projects show before Door43 answers, and the form never does.
+  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+  expect(answered).toBe(false);
   await expect(page.getByRole('heading', { name: 'Sign in to Door43' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible({ timeout: 10_000 });
-  expect(answered).toBe(true);
+  await expect.poll(() => answered, { timeout: 10_000 }).toBe(true);
+  await expect(page.getByRole('heading', { name: 'Sign in to Door43' })).toHaveCount(0);
 });
 
 test('j8: Back during a download, then the same project again: one download, one install, and the project opens', async ({ page, context }) => {

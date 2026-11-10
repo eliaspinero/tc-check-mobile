@@ -1,6 +1,9 @@
 # Builds the test APK (client bound to qa.door43.org) on GitHub, so testing on a phone needs no
 # Android toolchain on anyone's computer. The signed APK is attached to the run as an artifact.
-# It is signed with a key made for this run only: to install a newer build, uninstall the old one.
+# It is signed with the QA key in the repository secrets QA_KEYSTORE_B64 (the keystore, base64) and
+# QA_KEYSTORE_PASS, so a newer build installs over the last one and keeps the phone's data (#44). Where
+# the secrets cannot be read (a pull request from a fork) or are not set yet, it is signed with a key
+# made for that run only, and a newer build needs the old one uninstalled first.
 name: Android QA APK
 
 on:
@@ -33,18 +36,28 @@ jobs:
         working-directory: shell
         run: npm run android:tauri -- android build --apk --target aarch64 --ci
 
-      - name: Sign the APK with a key for this run
+      - name: Sign the APK with the QA key, or a key for this run
         working-directory: shell
+        env:
+          QA_KEYSTORE_B64: ${{ secrets.QA_KEYSTORE_B64 }}
+          QA_KEYSTORE_PASS: ${{ secrets.QA_KEYSTORE_PASS }}
         run: |
           apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*-release-unsigned.apk' -type f | head -n 1)
           if [ -z "$apk" ]; then echo "no unsigned release APK was built"; exit 1; fi
-          pass=$(openssl rand -hex 16)
-          keytool -genkeypair -keystore run.keystore -alias run -keyalg RSA -keysize 2048 -validity 30 \
-            -storepass "$pass" -keypass "$pass" -dname "CN=tC Check QA test build"
+          if [ -n "$QA_KEYSTORE_B64" ] && [ -n "$QA_KEYSTORE_PASS" ]; then
+            echo "Signed with the QA key: installs over the previous QA build and keeps its data"
+            echo "$QA_KEYSTORE_B64" | base64 -d > run.keystore
+            pass="$QA_KEYSTORE_PASS"
+          else
+            echo "::warning::No QA key in the secrets: signed with a key for this run; uninstall the old build first"
+            pass=$(openssl rand -hex 16)
+            keytool -genkeypair -keystore run.keystore -alias qa -keyalg RSA -keysize 2048 -validity 30 \
+              -storepass "$pass" -keypass "$pass" -dname "CN=tC Check QA test build"
+          fi
           tools="$ANDROID_SDK_ROOT/build-tools/34.0.0"
           "$tools/zipalign" -f -p 4 "$apk" aligned.apk
           mkdir -p apk
-          "$tools/apksigner" sign --ks run.keystore --ks-key-alias run --ks-pass "pass:$pass" \
+          "$tools/apksigner" sign --ks run.keystore --ks-key-alias qa --ks-pass "pass:$pass" \
             --out "apk/tc-check-qa-${GITHUB_SHA::7}.apk" aligned.apk
           "$tools/apksigner" verify "apk/tc-check-qa-${GITHUB_SHA::7}.apk"
           rm -f run.keystore aligned.apk

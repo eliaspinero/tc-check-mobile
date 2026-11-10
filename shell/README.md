@@ -40,8 +40,23 @@ names `pkg_version` `0.18.15`.
 The easy way needs nothing on your computer. The workflow `.github/workflows/android-qa-apk.yml`
 builds the test APK on GitHub for every pull request, and you can also start it by hand from the
 Actions tab. Open the run and download the `tc-check-qa-apk` artifact. It is a zip that holds
-`tc-check-qa-<commit>.apk`, an arm64 build whose client talks to `qa.door43.org`. Each run signs
-with a key made for that run only, so uninstall the old build before you install a newer one.
+`tc-check-qa-<commit>.apk`, an arm64 build whose client talks to `qa.door43.org`. It is signed
+with the QA key in the repository secrets `QA_KEYSTORE_B64` and `QA_KEYSTORE_PASS`, so a newer
+build installs over the last one and the phone keeps its sign-in, projects and resources. A run
+that cannot read them (a pull request from a fork) signs with a key made for that run only: then
+uninstall the old build before you install the newer one. The first build with the QA key also
+needs the old build uninstalled once.
+
+To make the QA key (once, by a repository admin), with a JDK's `keytool`:
+
+```bash
+keytool -genkeypair -keystore qa.keystore -alias qa -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=tC Check QA test build"
+```
+
+Then add its base64 as the secret `QA_KEYSTORE_B64` (`base64 -w0 qa.keystore`, or
+`[Convert]::ToBase64String([IO.File]::ReadAllBytes("qa.keystore"))` in PowerShell) and the password
+you gave `keytool` as `QA_KEYSTORE_PASS`, under Settings → Secrets and variables → Actions. The key
+signs test builds only; the release key is a different one.
 
 To build on your own machine you need a JDK 17, the Android SDK with NDK `27.0.12077973`, the
 Rust Android targets (`dev-env/install-android-toolchain.ps1` installs them on Windows), and
