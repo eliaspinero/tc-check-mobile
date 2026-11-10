@@ -78,7 +78,8 @@ export default function App() {
         // With the username kept too, the projects show without waiting for Door43, which checks the token behind them.
         if (username) {
           await signIn({ username, token });
-          api.userOf(token).catch((e: unknown) => isRefused(e) && signOut());
+          // Only while that token is still the one in use: a checker who signed in again meanwhile stays signed in.
+          api.userOf(token).catch((e: unknown) => isRefused(e) && live.current?.token === token && signOut());
           return;
         }
         try {

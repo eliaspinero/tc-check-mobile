@@ -117,32 +117,32 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       setUsable((old) => new Map([...old, ...list.filter((r) => r.canPush === false).map((r): [string, boolean] => [keyOf(r), false])]));
       const asked = list.filter((r) => r.canPush !== false);
       let next = 0;
-      let learned = false;
       const worker = async () => {
         while (current && next < asked.length) {
           const repo = asked[next++];
           const key = formatKey(host, repo);
-          let isTc = knownFormats.get(key);
-          if (isTc === undefined) {
-            if (!tcFormats.has(key))
-              tcFormats.set(
-                key,
-                api.isTcProject(session, repo).then(
-                  (answer) => {
-                    knownFormats.set(key, answer);
-                    return answer;
-                  },
-                  () => true,
-                ),
-              );
-            isTc = await tcFormats.get(key)!;
-            learned = true;
+          // An answer kept from an earlier start sorts the row at once (the screen's first state); Door43 is still
+          // asked once per run, as a project may have moved to the new format since. Each answer is kept as it lands,
+          // so the next start sorts the list at once even if the checker left this screen meanwhile.
+          if (!tcFormats.has(key)) {
+            const known = knownFormats.get(key);
+            tcFormats.set(
+              key,
+              api.isTcProject(session, repo).then(
+                (answer) => {
+                  knownFormats.set(key, answer);
+                  keepProjects(host, session.username);
+                  return answer;
+                },
+                () => known ?? true,
+              ),
+            );
           }
+          const isTc = await tcFormats.get(key)!;
           if (current) setUsable((old) => new Map(old).set(keyOf(repo), isTc));
         }
       };
-      // New answers in, the kept list is saved again with them, so the next start sorts it at once.
-      void Promise.all(Array.from({ length: AT_ONCE }, worker)).then(() => current && learned && keepProjects(host, session.username));
+      void Promise.all(Array.from({ length: AT_ONCE }, worker));
     };
     const keptList = kept<Door43Repo[]>(listKey);
     let landed = false;
@@ -180,12 +180,10 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
 
   /** Asks Door43 again for the list, and whether each repository is in the new format: one may have moved to it. */
   const refresh = () => {
-    for (const r of kept<Door43Repo[]>(listKey) ?? []) {
-      tcFormats.delete(formatKey(host, r));
-      knownFormats.delete(formatKey(host, r));
-    }
+    for (const r of kept<Door43Repo[]>(listKey) ?? []) tcFormats.delete(formatKey(host, r));
     void askDoor43(api, session, host);
-    setStatus(IDLE);
+    // It clears a failure's line; a project opening goes on opening.
+    setStatus((s) => (s.state === 'failed' ? IDLE : s));
     setRefreshes((n) => n + 1);
   };
 

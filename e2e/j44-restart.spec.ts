@@ -159,3 +159,71 @@ test('j44: a damaged kept result is only read again', async ({ page, context }) 
   await row(page, 'sample_burrito').click();
   await expect(page.getByTestId('book-progress').first()).not.toHaveText('…');
 });
+
+test('j44 review: a project opened before every format answer lands still shows after a restart with no Door43', async ({ page, context }) => {
+  await fakeTauri(context);
+  await fakeDoor43(context, { user: USER, repos: REPOS });
+  // Door43 is slow to say whether door43_only is in the new format; the checker opens their project meanwhile.
+  await context.route(`${QA_SERVER}/api/v1/repos/${USER.username}/door43_only/contents/**`, () => undefined);
+  await signIn(page);
+  await row(page, 'sample_burrito').click();
+  await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
+
+  await door43Hangs(context);
+  await page.reload();
+  await expect(row(page, 'sample_burrito')).toBeVisible({ timeout: 5000 });
+});
+
+test('j44 review: a project moved to the new format on a computer moves out of Other projects at the next start', async ({ page, context }) => {
+  await fakeTauri(context);
+  const moved: FakeRepo = { ...REPOS[1], format: 'other' };
+  await fakeDoor43(context, { user: USER, repos: [REPOS[0], moved] });
+  await signIn(page);
+  await expect(page.getByRole('button', { name: /Other projects/ })).toBeVisible();
+  await expect(row(page, 'door43_only')).toHaveCount(0);
+
+  // Its team moves it to the new format; the checker restarts the app, with no Refresh.
+  moved.format = 'tc';
+  await page.reload();
+  await expect(row(page, 'door43_only')).toBeVisible();
+});
+
+test('j44 review: a late refusal of the old token does not sign out a checker who signed in again', async ({ page, context }) => {
+  const tauri = await fakeTauri(context);
+  await fakeDoor43(context, { user: USER, repos: REPOS });
+  await signIn(page);
+  await expect(row(page, 'sample_burrito')).toBeVisible();
+  // A second sign-in, so the kept token is not the one the next fake Door43 hands out first.
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: /sign out/i }).click();
+  await page.getByLabel('Username or email').fill(USER.username);
+  await page.getByLabel('Password').fill(USER.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(row(page, 'sample_burrito')).toBeVisible();
+
+  // The checker signed in on another device, which revoked this one's token. On slow data, Door43's answer
+  // about the kept token is held; the list's refusal (asked at start) signs them out, and they sign in again.
+  await context.unroute(`${QA_SERVER}/api/v1/**`);
+  await fakeDoor43(context, { user: USER, repos: REPOS });
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  let first = true;
+  await context.route(`${QA_SERVER}/api/v1/user`, async (route) => {
+    if (first) {
+      first = false;
+      await held;
+    }
+    await route.fallback();
+  });
+  await page.reload();
+  await expect(page.getByLabel('Password')).toBeVisible();
+  await page.getByLabel('Username or email').fill(USER.username);
+  await page.getByLabel('Password').fill(USER.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(row(page, 'sample_burrito')).toBeVisible();
+  const token = tauri.token();
+  release();
+  await page.waitForTimeout(1000);
+  expect(tauri.token()).toBe(token);
+  await expect(page.getByLabel('Password')).toHaveCount(0);
+});
