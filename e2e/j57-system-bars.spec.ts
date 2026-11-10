@@ -4,10 +4,13 @@
 // Back or last control drawn under the status bar; Valid, Invalid, Next or Previous under the navigation bar, where the
 // system takes the taps; the chapter sheet's last row under it; the top bar's colour not reaching the top of the screen
 // (the status bar would show a strip of another colour); a change of the bars' sizes (the phone turned, the navigation
-// mode changed) not followed; Back smaller than Android's 48 dp touch target.
+// mode changed) not followed; Back smaller than Android's 48 dp touch target; the start-up skeleton, a screen with no top
+// bar, under the status bar.
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
-import { NEEDS_RIG, SAMPLE_PROJECT, placeRepo, rigUp } from './helpers/rig';
-import { openProject } from './helpers/session';
+import { CLIENT_URL, NEEDS_RIG, SAMPLE_PROJECT, placeRepo, rigUp } from './helpers/rig';
+import { QA_SERVER, fakeDoor43 } from './helpers/fakeDoor43';
+import { fakeTauri } from './helpers/fakeTauri';
+import { USER, openProject } from './helpers/session';
 import { placeTcProject } from './helpers/journal';
 
 const PROJECT = 'qa.door43.org/checker1/sample_burrito';
@@ -125,4 +128,27 @@ test('j57: outside the Android shell nothing changes: no bridge, no room kept fo
   await openProject(page, context, 'sample_burrito');
   await expect(page.getByRole('button', { name: 'Titus Words' })).toBeVisible();
   expect(await bannerContentTop(page)).toBeLessThan(BARS.top);
+});
+
+test('j57: the start-up skeleton, which has no top bar, starts below the status bar', async ({ page, context }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await playBridge(context, BARS);
+  await placeRepo(SAMPLE_PROJECT, PROJECT);
+  await fakeTauri(context);
+  await fakeDoor43(context, { user: USER, repos: [{ owner: USER.username, name: 'sample_burrito' }] });
+  await page.goto(CLIENT_URL);
+  await page.getByLabel('Username or email').fill(USER.username);
+  await page.getByLabel('Password').fill(USER.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+
+  // Opened again with the kept token: Door43 takes a moment to say whose it is, and the skeleton shows meanwhile.
+  await context.route(`${QA_SERVER}/api/v1/user`, async (route) => {
+    await new Promise((r) => setTimeout(r, 3000));
+    await route.fallback();
+  });
+  await page.reload();
+  const skeleton = page.locator('main.screen > :first-child');
+  await expect(skeleton).toBeVisible();
+  expect((await box(skeleton)).y).toBeGreaterThanOrEqual(BARS.top);
 });
