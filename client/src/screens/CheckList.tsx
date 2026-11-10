@@ -3,7 +3,8 @@ import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { isTcProject, syncTc } from '../session/decide';
 import { syncFailureText } from './syncFailure';
-import { loadSession, type Session } from '../session/loadSession';
+import type { Session } from '../session/loadSession';
+import { contextOf, forgetProject, keptResourceText, keys, kept, resourceText, sessionOf } from '../session/kept';
 import { t } from '../i18n';
 import type { Strings } from '../i18n/en';
 import { bookName, toolName } from '../i18n/books';
@@ -17,7 +18,7 @@ import ErrorLine from './ErrorLine';
 import Skeleton from './Skeleton';
 import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
-import { loadCheckContext, type CheckContext } from '../session/loadCheckContext';
+import type { CheckContext } from '../session/loadCheckContext';
 
 const STATE_KEY: Record<Exclude<Session['state'], 'ready'>, keyof Strings> = {
   unavailable: 'stateUnavailable',
@@ -45,20 +46,33 @@ type Props = {
   door43: { username: string; token: string };
 };
 
+const articleKey = (item: CheckItem) => `${(item.category as string | undefined) ?? 'kt'}/${item.contextId.groupId}`;
+
 export default function CheckList({ repoPath, tool, book, source, engine, focus, onOpen, onBack, door43 }: Props) {
-  const [session, setSession] = useState<Session | null>(null);
+  // What this run has read already shows at once (session/kept.ts).
+  const [session, setSession] = useState<Session | null>(() => kept<Session>(keys.session(repoPath, tool, book)) ?? null);
   // The list's one status line: nothing to say, a Sync running, or why loading or syncing failed.
   // A failure shows over the list already on screen, which stays.
   const [status, setStatus] = useState<Run<{ state: 'syncing' }>>(IDLE);
   const [chapter, setChapter] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
-  const [ctx, setCtx] = useState<CheckContext | null>(null);
+  const [ctx, setCtx] = useState<CheckContext | null>(() =>
+    session?.state === 'ready' ? (kept<CheckContext>(keys.context(repoPath, book, session.rung)) ?? null) : null,
+  );
   // tW article titles by `category/groupId`, read for the chapter on screen.
-  const [titles, setTitles] = useState<Map<string, string>>(new Map());
+  const [titles, setTitles] = useState<Map<string, string>>(() => {
+    const known = new Map<string, string>();
+    if (!ctx?.twPath) return known;
+    for (const key of new Set((session?.state === 'ready' ? session.items : []).map(articleKey))) {
+      const md = keptResourceText(ctx.twPath, `payload/${key}.md`);
+      if (md !== undefined) known.set(key, splitTitle(md).title ?? '');
+    }
+    return known;
+  });
 
   const load = useCallback(() => {
     setStatus(IDLE);
-    loadSession(repoPath, tool, book, source, engine).then(setSession, (e: Error) => setStatus({ state: 'failed', message: e.message }));
+    sessionOf(repoPath, tool, book, source, engine).then(setSession, (e: Error) => setStatus({ state: 'failed', message: e.message }));
   }, [repoPath, tool, book, source, engine]);
   useEffect(load, [load]);
 
@@ -74,11 +88,13 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
           setStatus({ state: 'failed', message: syncFailureText(result.failure) });
           return;
         }
+        forgetProject(repoPath);
         load();
         return;
       }
       await source.enableNet();
       await source.pull(repoPath);
+      forgetProject(repoPath);
       load();
     } catch (e) {
       setStatus({ state: 'failed', message: (e as Error).message });
@@ -106,10 +122,9 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   const rung = session?.state === 'ready' ? session.rung : null;
   useEffect(() => {
     if (!rung) return;
-    loadCheckContext(repoPath, book, rung, source, engine).then(setCtx, () => setCtx(null));
+    contextOf(repoPath, book, rung, source, engine).then(setCtx, () => setCtx(null));
   }, [repoPath, book, rung, source, engine]);
 
-  const articleKey = (item: CheckItem) => `${(item.category as string | undefined) ?? 'kt'}/${item.contextId.groupId}`;
   const missing = tool === 'translationWords' && ctx?.twPath ? [...new Set(chapterItems.map(articleKey))].filter((k) => !titles.has(k)) : [];
   const missingKey = missing.join(',');
   useEffect(() => {
@@ -117,7 +132,7 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
     const twPath = ctx.twPath;
     Promise.all(
       missingKey.split(',').map(async (key): Promise<[string, string]> => {
-        const md = await source.readText(twPath, `payload/${key}.md`).catch(() => '');
+        const md = await resourceText(source, twPath, `payload/${key}.md`).catch(() => '');
         return [key, splitTitle(md).title ?? ''];
       }),
     ).then((read) => setTitles((old) => new Map([...old, ...read])));
