@@ -300,8 +300,9 @@ pub struct Selected {
     pub occurrences: u32,
 }
 
-/// What a Check button records: the check (its tC4 `contextId` and `category`), the list's
-/// resource, and the button's patch (the client's `engine.patch`, tC4 `recordDecision`).
+/// What the check screen records: the check (its tC4 `contextId` and `category`), the list's
+/// resource, and the change: a button's status with the words (the client's `engine.patch`, tC4
+/// `recordDecision`), or the words alone, saved a moment after a tap (STORAGE.md §5.4).
 #[derive(Debug, Deserialize)]
 #[serde(crate = "rocket::serde", rename_all = "camelCase")]
 pub struct Decide {
@@ -309,7 +310,8 @@ pub struct Decide {
     pub context_id: rocket::serde::json::Value,
     pub category: String,
     pub resource: Resource,
-    pub status: String,
+    /// `valid` or `invalid`; absent when only the words changed, which keeps the status.
+    pub status: Option<String>,
     /// The words, or `false` for none, as tC4 writes `selections`.
     pub selections: rocket::serde::json::Value,
     pub nothing_to_select: bool,
@@ -323,10 +325,11 @@ impl Decide {
     /// The store's edit: the button's changes, with the check's context and category for a
     /// first decision.
     fn edit(&self) -> Result<DecisionEdit, DecideError> {
-        let status = match self.status.as_str() {
-            "valid" => UserStatus::Valid,
-            "invalid" => UserStatus::Invalid,
-            other => return Err(bad(format!("unknown status {other:?}"))),
+        let status = match self.status.as_deref() {
+            None => None,
+            Some("valid") => Some(UserStatus::Valid),
+            Some("invalid") => Some(UserStatus::Invalid),
+            Some(other) => return Err(bad(format!("unknown status {other:?}"))),
         };
         let selections = match &self.selections {
             rocket::serde::json::Value::Bool(false) => None,
@@ -360,11 +363,13 @@ impl Decide {
                 repo_path: self.resource.repo_path.as_str().into(),
                 sha: GitOid::parse(&self.resource.sha).ok_or_else(|| bad("resource sha"))?,
             },
-            changes: vec![
+            changes: [
                 DecisionChange::Selections(selections),
                 DecisionChange::NothingToSelect(self.nothing_to_select),
-                DecisionChange::Status(Some(status)),
-            ],
+            ]
+            .into_iter()
+            .chain(status.map(|s| DecisionChange::Status(Some(s))))
+            .collect(),
         })
     }
 

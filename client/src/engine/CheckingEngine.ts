@@ -11,7 +11,8 @@ import type { ArticleBlock, ArticleSpan } from '../checking/markdown';
 
 export type { ArticleBlock, ArticleSpan, ProjectFrame };
 /** What a Check button records (tC4 Check.jsx markValid / markInvalid). */
-export type DecisionPatch = { selections: Selection[] | false; nothingToSelect: boolean; status: 'valid' | 'invalid' };
+/** A change to a check's record: the words, and a button's status; no status keeps the one it has (STORAGE.md §5.4). */
+export type DecisionPatch = { selections: Selection[] | false; nothingToSelect: boolean; status?: 'valid' | 'invalid' };
 export type { CheckItem, DerivedBook, DerivedVerse, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
 
 export interface DeriveInput {
@@ -42,6 +43,9 @@ export interface CheckingEngine {
   /** What a Check button records (tC4 Check.jsx markValid / markInvalid): Valid with words tapped records
    * them, with none "nothing to select"; Invalid clears the selection. */
   patch(button: 'valid' | 'invalid', verseText: string, tapped: number[]): DecisionPatch;
+  /** The words alone, saved a moment after a tap: the status stays. Nothing to select only on a valid check left with
+   * no words, as Valid with none tapped records. */
+  select(verseText: string, tapped: number[], status: 'valid' | 'invalid' | null): DecisionPatch;
   /** The project's versification frame (tC4 resolveProjectFrame): a recorded name, else a fingerprint of vrs.json. */
   projectFrame(repoPath: string, io: FrameIO): Promise<ProjectFrame>;
   /** Which rung's pin supplies this (tool, book), and whether the twl pin is the retired one-repo form. */

@@ -60,8 +60,9 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     // The shell's own route (shell/src-tauri/src/tc.rs), not Pankosmia's: it answers an empty 200.
     syncTc: async (repoPath, as) =>
       JSON.parse(await text(`/tc/sync/${enc(repoPath)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(as) })) as TcSyncResult,
+    // keepalive: a change saved as the app goes to the background or closes still reaches the shell.
     recordDecision: async (repoPath, decision) => {
-      await text(`/tc/decide/${enc(repoPath)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(decision) });
+      await text(`/tc/decide/${enc(repoPath)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(decision), keepalive: true });
     },
     readMetadata: async (repoPath) => JSON.parse(await text(`/burrito/metadata/raw/${enc(repoPath)}`)) as Record<string, unknown>,
     readResources: (repoPath) => readJsonOrNull<ResourcesFile>(repoPath, 'checking/resources.json'),
