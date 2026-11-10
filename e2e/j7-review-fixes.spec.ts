@@ -75,10 +75,10 @@ test('j7: leaving the install screen keeps you where you went when the download 
   await expect(page.getByText('Downloading…')).toBeVisible();
   await page.getByRole('button', { name: 'Back' }).click();
   await page.getByRole('button', { name: /^sample_burrito/ }).click();
-  await expect(page.getByText('checker1/sample_burrito')).toBeVisible();
+  await expect(page.getByText('checker1/sample_burrito', { exact: true })).toBeVisible();
   await expect.poll(async () => (await listLocal()).includes(UST_V90_INSTALL), { timeout: 120_000 }).toBe(true);
   await page.waitForTimeout(1500);
-  await expect(page.getByText('checker1/sample_burrito')).toBeVisible();
+  await expect(page.getByText('checker1/sample_burrito', { exact: true })).toBeVisible();
 });
 
 test('j7: a pin without its book list still resolves from the installed resource', async ({ page, context }) => {

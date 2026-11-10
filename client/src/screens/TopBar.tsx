@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { t } from '../i18n';
+import { useBack } from './back';
 
 type Props = {
   /** Where the checker is: the screen's heading. */
@@ -18,6 +19,8 @@ type Props = {
 
 /** The bar at the top of every screen: back arrow, the place, and the screen's actions. */
 export default function TopBar({ title, sub, onBack, onTitle, titleTestId, actions, brand }: Props) {
+  // Android's Back does what this Back does (#58).
+  useBack(onBack);
   return (
     <header className="topbar" role="banner">
       {onBack && (
