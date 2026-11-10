@@ -23,6 +23,59 @@ const TARGET = String.raw`\id ACT Probe
 \v 1 Three one.
 `;
 
+// The chapter markers usfm-js reads besides a clean `\c N` line (#67 review): a leading zero, an indented marker, one
+// mid-line, a whole book on one line. Each shows the same verses as the whole-book parse.
+const FORMS: Record<string, string> = {
+  leadingZero: String.raw`\id TIT
+\c 01
+\p
+\v 1 Paul.
+\c 02
+\v 1 But you.
+`,
+  indented: String.raw`\id TIT
+\c 1
+\p
+\v 1 Paul.
+   \c 2
+\v 1 But you.
+`,
+  midLine: String.raw`\id TIT
+\c 1
+\p
+\v 1 Paul. \c 2 \p \v 1 But you.
+`,
+  oneLine: String.raw`\id TIT \c 1 \p \v 1 Paul. \v 2 A servant. \c 2 \p \v 1 But you.`,
+};
+
+test('j60 review: chapter markers in the other forms usfm-js reads show the same verses', async ({ page }) => {
+  test.skip(!(await rigUp()), NEEDS_RIG);
+  await page.goto(CLIENT_URL);
+  const differences = await page.evaluate(
+    async ({ src, forms }) => {
+      const { tsEngine } = await import(`${src}/engine/tsEngine.ts`);
+      const { deriveTargetBible } = await import(`${src}/checking/derive.ts`);
+      const { withSpanMembers } = await import(`${src}/checking/spanMembers.ts`);
+      const out: string[] = [];
+      for (const [name, usfm] of Object.entries(forms)) {
+        const whole = withSpanMembers(deriveTargetBible(usfm));
+        const parsed = tsEngine.parseBook(usfm);
+        let verses = 0;
+        for (const [chapter, inChapter] of Object.entries(whole.chapters))
+          for (const [verse, expected] of Object.entries(inChapter)) {
+            verses++;
+            // What the check screen shows of the verse (an indented marker leaves trailing spaces in the whole parse).
+            if (tsEngine.verseText(parsed.verse(chapter, verse)) !== tsEngine.verseText(expected)) out.push(`${name} ${chapter}:${verse}`);
+          }
+        if (verses < 2) out.push(`${name}: the whole parse found ${verses} verses`);
+      }
+      return out;
+    },
+    { src: SRC, forms: FORMS },
+  );
+  expect(differences).toEqual([]);
+});
+
 test('j60: a book parsed a chapter at a time gives every verse as the whole-book parse does', async ({ page }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await page.goto(CLIENT_URL);

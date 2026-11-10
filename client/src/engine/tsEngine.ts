@@ -13,11 +13,11 @@ import type { CheckingEngine, DerivedVerse, ParsedBook } from './CheckingEngine'
  * once; a chapter is parsed with the book's headers the first time one of its verses is asked for, and kept.
  */
 const parseByChapter = (usfm: string): ParsedBook => {
-  // Chapters start at a `\c N` at the start of a line, as USFM writes them and as usfm-js reads them (j60 holds the two
-  // parses equal on whole books).
-  const starts = [...usfm.matchAll(/^\\c[ \t]+(\d+)/gm)];
+  // A chapter starts at any `\c N`, also mid-line, and `\c 01` is chapter 1, as usfm-js reads them (j60 holds the two
+  // parses equal on whole books and on those forms).
+  const starts = [...usfm.matchAll(/\\c\s+(\d+)/g)];
   const head = usfm.slice(0, starts[0]?.index ?? usfm.length);
-  const text = new Map(starts.map((m, i) => [m[1], usfm.slice(m.index, starts[i + 1]?.index ?? usfm.length)]));
+  const text = new Map(starts.map((m, i) => [String(Number(m[1])), usfm.slice(m.index, starts[i + 1]?.index ?? usfm.length)]));
   const parsed = new Map<string, Record<string, DerivedVerse>>();
   return {
     verse: (chapter, verse) => {
