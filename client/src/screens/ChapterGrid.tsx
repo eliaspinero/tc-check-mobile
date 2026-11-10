@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { t } from '../i18n';
+import { useBack } from './back';
 
 export type ChapterState = 'none' | 'open' | 'done';
 
@@ -16,6 +17,8 @@ type Props = {
 /** The book's chapters as a grid, as YouVersion shows them: greyed with no checks, ✓ when all are checked. */
 export default function ChapterGrid({ open, chapters, current, onPick, onClose }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
+  // While the grid is open, Android's Back closes it before the screen's Back (#58).
+  useBack(open ? onClose : undefined);
 
   // Focus goes to the current chapter while the grid is open, and back where it was (the title) however it closes.
   useEffect(() => {
