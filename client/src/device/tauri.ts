@@ -13,3 +13,11 @@ export const bridgeOf = (): Bridge | null => (globalThis as { __TAURI_INTERNALS_
 export const invokeOf = (): Invoke | null => bridgeOf()?.invoke ?? null;
 
 export const inTauri = (): boolean => invokeOf() !== null;
+
+/** In the app, opens `url` in the phone's browser (Tauri's opener plugin) and returns true; in a plain browser, false. */
+export const openExternal = (url: string): boolean => {
+  const invoke = invokeOf();
+  if (!invoke) return false;
+  void invoke('plugin:opener|open_url', { url });
+  return true;
+};

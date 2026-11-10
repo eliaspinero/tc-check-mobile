@@ -46,6 +46,11 @@ export const en = {
 
   booksTitle: 'Choose a book',
   loadingBooks: 'Loading the books…',
+  openOnDoor43: 'Open on Door43',
+  leavingTitle: "You're leaving tC Check",
+  leavingBody: '{place} will open in your phone’s browser.',
+  cancel: 'Cancel',
+  open: 'Open',
   words: 'Words',
   notes: 'Notes',
   bookToolProgress: '{name}, {decided} of {total}',
