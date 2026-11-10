@@ -80,7 +80,9 @@ function App() {
 
       if (!cancelled) {
 
-        window.location.href = targetInApp;
+        // replace, not href: the loader leaves no history entry, so Android's Back on the client's first screen
+        // closes the app instead of coming back here (#58).
+        window.location.replace(targetInApp);
 
         setTarget(targetInApp);
         setStatus("connected");

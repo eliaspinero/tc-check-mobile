@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 import { CLIENT_URL, NEEDS_RIG, rigUp } from './helpers/rig';
 import { USER, openProject } from './helpers/session';
 import { fakeDoor43 } from './helpers/fakeDoor43';
-import { fakeTauri } from './helpers/fakeTauri';
+import { fakeTauri, pressBack } from './helpers/fakeTauri';
 import { placeTcProject } from './helpers/journal';
 
 const REPO = 'open_on_door43';
@@ -44,6 +44,14 @@ test('j61: Cancel closes the sheet, opens nothing, and gives the focus back to t
   await sheet.getByRole('button', { name: 'Cancel' }).click();
   await expect(sheet).toBeHidden();
   await expect(trigger).toBeFocused();
+  expect(tauri.opened()).toEqual([]);
+
+  // Android's Back closes the sheet first, and the books stay (#58).
+  await trigger.click();
+  await expect(sheet).toBeVisible();
+  await pressBack(page);
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
   expect(tauri.opened()).toEqual([]);
 });
 

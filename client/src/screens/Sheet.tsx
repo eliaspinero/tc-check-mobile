@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useBack } from './back';
 
 type Props = {
   /** Closed, the sheet stays in the page, hidden, so app.css can fade it out as it closes. */
@@ -13,10 +14,12 @@ type Props = {
 
 const CONTROLS = 'button:enabled, a[href]';
 
-/** A sheet over the screen, from the bottom: Escape or a tap outside closes it, Tab stays inside it, and the focus
+/** A sheet over the screen, from the bottom: Escape, Android's Back or a tap outside closes it, Tab stays inside it, and the focus
  * goes back where it was however it closes. */
 export default function Sheet({ open, onClose, labelledBy, focusFirst, children }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
+  // While the sheet is open, Android's Back closes it before the screen's Back (#58).
+  useBack(open ? onClose : undefined);
 
   useEffect(() => {
     if (!open) return;

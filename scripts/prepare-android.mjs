@@ -2,7 +2,7 @@
 // is recreated by every init, so the loopback cleartext rule the WebView needs is applied from here.
 // It copies shell/android/network_security_config.xml into the app's res/xml and points the manifest at it.
 // It also copies the launcher icons (`tauri icon shell/app-icon.svg` writes them to src-tauri/icons/android),
-// because init writes Tauri's default icons.
+// because init writes Tauri's default icons, and replaces the MainActivity (shell/android/MainActivity.kt).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -34,3 +34,12 @@ console.log('prepare-android: loopback cleartext allowed (res/xml/network_securi
 
 fs.cpSync(path.join(root, 'shell/src-tauri/icons/android'), path.join(app, 'res'), { recursive: true });
 console.log('prepare-android: launcher icons copied (shell/src-tauri/icons/android)');
+
+// Init writes a MainActivity that only draws edge to edge; ours also tells the page how tall the system bars are (#57).
+const activity = path.join(app, 'java/org/unfoldingword/tccheck/MainActivity.kt');
+if (!fs.existsSync(activity)) {
+  console.error(`prepare-android: ${path.relative(root, activity)} is missing; did the app identifier change?`);
+  process.exit(1);
+}
+fs.copyFileSync(path.join(root, 'shell/android/MainActivity.kt'), activity);
+console.log('prepare-android: MainActivity replaced (shell/android/MainActivity.kt)');
