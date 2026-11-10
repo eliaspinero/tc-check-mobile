@@ -72,17 +72,11 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
 
   return (
     <main className="screen">
-      <TopBar
-        brand
-        title={t('booksTitle')}
-        sub={repoPath.split('/').slice(-2).join('/')}
-        onBack={onBack}
-        actions={
-          <a href={door43Url} target="_blank" rel="noreferrer" onClick={openOnDoor43}>
-            {t('openOnDoor43')}
-          </a>
-        }
-      />
+      <TopBar brand title={t('booksTitle')} sub={repoPath.split('/').slice(-2).join('/')} onBack={onBack} />
+      {/* Its own row, not in the bar: there it would cover a long project name on a narrow phone. */}
+      <a className="link-button" href={door43Url} target="_blank" rel="noreferrer" onClick={openOnDoor43}>
+        {t('openOnDoor43')}
+      </a>
       <ErrorLine text={failure(scope)} />
       {scope.state === 'loading' && <Skeleton shape="books" label={t('loadingBooks')} />}
       {books?.map((book, i) => (

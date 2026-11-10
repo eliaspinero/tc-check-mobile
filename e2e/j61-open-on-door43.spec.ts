@@ -18,12 +18,26 @@ test('j61: "Open on Door43" hands the repository\'s page to the system browser a
   await openProject(page, context, REPO);
   await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
 
-  const link = page.getByRole('banner').getByRole('link', { name: 'Open on Door43' });
+  const link = page.getByRole('link', { name: 'Open on Door43' });
   await expect(link).toHaveAttribute('href', DOOR43_URL);
   await link.click();
   await expect.poll(() => tauri.opened()).toEqual([DOOR43_URL]);
   expect(context.pages()).toHaveLength(1);
   await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
+});
+
+test.describe('on a narrow phone', () => {
+  test.use({ viewport: { width: 360, height: 780 } });
+  test('j61: a long project name still reads whole, nothing drawn over it', async ({ page, context }) => {
+    test.skip(!(await rigUp()), NEEDS_RIG);
+    const long = 'en_ult_titus_checking';
+    await placeTcProject(`qa.door43.org/${USER.username}/${long}`);
+    await openProject(page, context, long);
+    await expect(page.getByRole('link', { name: 'Open on Door43' })).toBeVisible();
+    // The project line's text fits its box: it does not run on under anything beside it.
+    const sub = page.getByRole('banner').getByText(`${USER.username}/${long}`, { exact: true });
+    expect(await sub.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+  });
 });
 
 test.describe('on a phone in Spanish', () => {
@@ -39,6 +53,6 @@ test.describe('on a phone in Spanish', () => {
     await page.getByRole('button', { name: 'Entrar' }).click();
     await page.getByRole('button', { name: new RegExp(`^${REPO}`) }).click();
     await expect(page.getByRole('heading', { name: 'Elige un libro' })).toBeVisible();
-    await expect(page.getByRole('banner').getByRole('link', { name: 'Abrir en Door43' })).toHaveAttribute('href', DOOR43_URL);
+    await expect(page.getByRole('link', { name: 'Abrir en Door43' })).toHaveAttribute('href', DOOR43_URL);
   });
 });
