@@ -134,7 +134,7 @@ test('j57: the start-up skeleton, which has no top bar, starts below the status 
   test.skip(!(await rigUp()), NEEDS_RIG);
   await playBridge(context, BARS);
   await placeRepo(SAMPLE_PROJECT, PROJECT);
-  await fakeTauri(context);
+  const tauri = await fakeTauri(context);
   await fakeDoor43(context, { user: USER, repos: [{ owner: USER.username, name: 'sample_burrito' }] });
   await page.goto(CLIENT_URL);
   await page.getByLabel('Username or email').fill(USER.username);
@@ -142,7 +142,9 @@ test('j57: the start-up skeleton, which has no top bar, starts below the status 
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
 
-  // Opened again with the kept token: Door43 takes a moment to say whose it is, and the skeleton shows meanwhile.
+  // Opened again with a token kept without its username (kept before #44): Door43 takes a moment to say whose it is,
+  // and the skeleton shows meanwhile.
+  tauri.kept.delete('session');
   await context.route(`${QA_SERVER}/api/v1/user`, async (route) => {
     await new Promise((r) => setTimeout(r, 3000));
     await route.fallback();
