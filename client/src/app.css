@@ -9,7 +9,7 @@ input { font-family: inherit; font-size: var(--fs-title-sm); min-height: var(--s
 /* Every button is a 44 px touch target, whatever tC4's desktop controls measure. */
 button, a.link-button { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
 /* tC4's Inspire fill carries white text at 2.6:1; its 700 step keeps the Inspire hue and passes AA (5.6:1). */
-button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
+button.primary, a.link-button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
 /* Under the pointer a button darkens a little, and a little more while pressed (a finger gets the press only): a dark
    layer over its fill and under its text, shown by its opacity so it fades. Its own colours never change. */
 button, a.link-button { position: relative; isolation: isolate; }
@@ -55,7 +55,7 @@ mark.hl { background: var(--tc-highlight-soft); color: inherit; border-radius: v
 .topbar-actions { display: flex; gap: var(--space-3); }
 .topbar-actions button, a.link-button { padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
 /* A link to a page outside the app, drawn as a button is. */
-a.link-button { align-self: flex-start; display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; }
+a.link-button { display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; }
 button.icon { border: none; background: transparent; font-size: 22px; line-height: 1; min-width: var(--space-20); padding: var(--space-2) var(--space-4); }
 button.title-button { border: none; border-radius: var(--radius-sm); background: transparent; padding: 0; font: inherit; color: inherit; text-align: left; max-width: 100%; }
 button.danger { border-color: var(--border-danger); color: var(--text-invalid); }
@@ -87,6 +87,7 @@ button.tool { display: flex; flex-direction: column; align-items: center; gap: 2
 .sheet { width: 100%; max-width: 560px; max-height: 80vh; overflow: auto; background: var(--surface-app); border-radius: var(--radius-xl) var(--radius-xl) 0 0; box-shadow: var(--shadow-modal); padding: var(--space-5) var(--space-7) var(--space-8); }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; }
 .sheet-head h2 { font-size: var(--fs-title); font-weight: var(--fw-black); color: var(--text-heading); margin: 0; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
 .chapter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); margin-top: var(--space-5); }
 button.chapter { position: relative; padding: var(--space-6) 0; border-radius: var(--radius-sm); }
 button.chapter.current { border-color: var(--accent); color: var(--text-accent); font-weight: var(--fw-black); }
