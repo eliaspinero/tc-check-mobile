@@ -1,6 +1,6 @@
 // The one door from the screens to checking logic: tsEngine, over code copied from tC4.
 // Decisions are not recorded here but by the Rust tC4's store in the shell (ProjectSource.recordDecision).
-import type { CheckItem, DerivedBook, DerivedVerse, ProjectDeriveResult, VerseObject } from '../checking/derive';
+import type { CheckItem, DerivedVerse, ProjectDeriveResult, VerseObject } from '../checking/derive';
 import type { SchemeDoc, SchemeName } from '../checking/versification';
 import type { Coverage, Resolution, Tool } from '../checking/resolve';
 import type { ResourcePin, ResourcesFile } from '../checking/types';
@@ -13,7 +13,13 @@ export type { ArticleBlock, ArticleSpan, ProjectFrame };
 /** What a Check button records (tC4 Check.jsx markValid / markInvalid). */
 /** A change to a check's record: the words, and a button's status; no status keeps the one it has (STORAGE.md §5.4). */
 export type DecisionPatch = { selections: Selection[] | false; nothingToSelect: boolean; status?: 'valid' | 'invalid' };
-export type { CheckItem, DerivedBook, DerivedVerse, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
+export type { CheckItem, DerivedVerse, Coverage, Resolution, ResourcePin, ResourcesFile, Selection, SourceToken, Tool, VerseObject };
+
+/** A parsed USFM book, read a verse at a time by its exact chapter and verse strings (a verse inside a bridge reads
+ * the bridge). */
+export interface ParsedBook {
+  verse(chapter: string, verse: string): DerivedVerse | undefined;
+}
 
 export interface DeriveInput {
   tsv: string;
@@ -55,8 +61,8 @@ export interface CheckingEngine {
   progress(items: CheckItem[]): { decided: number; total: number };
   /** The tW articles a tw resource carries, from its metadata's ingredient list (§4.2 article gate). */
   twArticles(twMetadata: { ingredients?: Record<string, unknown> }): Set<string>;
-  /** Parse a whole USFM book (usfm-js): chapters keyed by the exact chapter and verse strings. */
-  parseBook(usfm: string): DerivedBook;
+  /** Parse a USFM book (usfm-js), a chapter when one of its verses is first read. */
+  parseBook(usfm: string): ParsedBook;
   /** A verse's plain display text, footnotes and section markers dropped. */
   verseText(verse: DerivedVerse | undefined): string;
   /** An aligned source verse as display tokens, and the token indices the quote highlights. */

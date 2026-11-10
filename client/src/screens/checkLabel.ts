@@ -1,9 +1,9 @@
-import type { CheckingEngine, CheckItem, DerivedBook } from '../engine/CheckingEngine';
+import type { CheckingEngine, CheckItem, ParsedBook } from '../engine/CheckingEngine';
 import type { Pane } from '../session/loadCheckContext';
 
-export const verseOf = (book: DerivedBook | null, item: CheckItem) => {
+export const verseOf = (book: ParsedBook | null, item: CheckItem) => {
   const r = item.contextId.reference as { chapter?: unknown; verse?: unknown };
-  return book?.chapters[String(r.chapter)]?.[String(r.verse)];
+  return book?.verse(String(r.chapter), String(r.verse));
 };
 
 /** The words a check is about, as the first source pane renders them (tC4 card titles, glTitleFor);
