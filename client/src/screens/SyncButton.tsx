@@ -40,7 +40,7 @@ type Props = {
 /** Sync, on every screen of a project and on each project's row (#59). The screen holds the run. */
 export default function SyncButton({ syncing, disabled, onSync, project }: Props) {
   return (
-    <button className={project ? 'row-sync' : undefined} onClick={onSync} disabled={syncing || disabled} aria-label={project && t('syncProject', { name: project })}>
+    <button className={project ? 'row-sync' : undefined} onClick={onSync} disabled={syncing || disabled} aria-label={project && t(syncing ? 'syncingProject' : 'syncProject', { name: project })}>
       {syncing ? t('syncing') : t('sync')}
     </button>
   );

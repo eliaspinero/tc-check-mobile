@@ -41,7 +41,14 @@ const openUndecided = async (page: Page, context: BrowserContext) => {
 };
 
 test('j59: Valid shows from memory: nothing is read again, and the list and the books count it', async ({ page, context }) => {
-  await openUndecided(page, context);
+  // The books are all counted first: their reads in the background are not the decision's.
+  await openProject(page, context, NAME);
+  await expect.poll(async () => {
+    const shown = await page.getByTestId('book-progress').allTextContents();
+    return shown.length > 0 && !shown.includes('…');
+  }).toBe(true);
+  await page.getByRole('button', { name: /^Titus Words/ }).click();
+  await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
   await page.getByRole('button', { name: 'Back' }).click();
   const before = Number(((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/)![0]);
   await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
@@ -145,6 +152,40 @@ test('j59: a Sync on the check screen syncs after the decision on its way, and k
   await expect(page.getByTestId('check-header')).toHaveText(header!);
   await expect(page.getByTestId('decided')).toHaveText('Valid');
   await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('j59 review: Valid tapped while a Sync runs stays shown, and the list counts it', async ({ page, context }) => {
+  await openProject(page, context, NAME);
+  await page.getByRole('button', { name: /^Titus Words/ }).click();
+  const before = Number(((await page.getByTestId('progress').textContent()) ?? '').match(/\d+/)![0]);
+  await page.getByTestId('check-row').filter({ hasNotText: 'Checked' }).first().click();
+  await expect(page.getByTestId('check-screen')).toBeVisible();
+  // As the shell's sync: it closes the project (its checkpoint), then talks to Door43 for a while. A decision tapped
+  // meanwhile waits for the sync in the shell, so it reaches the pending log after that checkpoint.
+  let synced!: () => void;
+  const syncDone = new Promise<void>((r) => (synced = r));
+  let closed!: () => void;
+  const closedNow = new Promise<void>((r) => (closed = r));
+  await page.route('**/api/tc/sync/**', async (route) => {
+    await checkpoint(PROJECT);
+    closed();
+    await new Promise((r) => setTimeout(r, 1000));
+    await route.fulfill({ json: { synced: true, received: false, confirmed: true } });
+    synced();
+  });
+  await page.route('**/api/tc/decide/**', async (route) => {
+    await syncDone;
+    await route.continue();
+  });
+  await page.getByRole('banner').getByRole('button', { name: 'Sync', exact: true }).click();
+  await closedNow;
+  await page.getByRole('button', { name: 'Valid', exact: true }).click();
+  await expect(page.getByTestId('decided')).toHaveText('Valid');
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Sync', exact: true })).toBeEnabled();
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId('decided')).toHaveText('Valid');
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('progress')).toHaveText(new RegExp(`^${before + 1} of`));
 });
 
 test("j59: a project on this device has Sync on its row, to the right of its name, and syncs without opening; one that is not has none", async ({ page, context }) => {

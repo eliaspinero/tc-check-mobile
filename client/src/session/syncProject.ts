@@ -1,7 +1,7 @@
 // Sync, the same from every screen that offers it (#59): the books, the list, the check, and a project's row.
 import type { ProjectSource } from '../project/ProjectSource';
 import type { SyncFailure } from '../screens/syncFailure';
-import { isTcProject, syncTc } from './decide';
+import { checkpoint, isTcProject, syncTc } from './decide';
 import { forgetProject } from './kept';
 
 /** A project in the Rust tC4's format syncs as the Rust tC4 does, both ways, after the decisions on their way; any
@@ -12,6 +12,9 @@ export const syncProject = async (repoPath: string, as: { username: string; toke
   if (isTcProject(await source.listPaths(repoPath))) {
     const result = await syncTc(repoPath, as, source);
     if (!result.synced) return result.failure;
+    // A decision tapped while it synced reached the store after the sync's own checkpoint: it is sealed into the
+    // decision files too, before the screens read them again.
+    await checkpoint(repoPath, source);
   } else {
     await source.enableNet();
     await source.pull(repoPath);
