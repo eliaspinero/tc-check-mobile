@@ -55,7 +55,9 @@ mark.hl { background: var(--tc-highlight-soft); color: inherit; border-radius: v
 .topbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--space-3); margin: calc(-1 * (var(--space-7) + var(--safe-top))) calc(-1 * var(--space-7)) 0; padding: calc(var(--space-2) + var(--safe-top)) var(--space-5) var(--space-2); background: var(--surface-app); border-bottom: var(--stroke-hair) solid var(--border); }
 .topbar-place { flex: 1; min-width: 0; }
 .topbar h1 { margin: 0; font-size: var(--fs-title); letter-spacing: var(--track-17); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topbar-sub { font-size: var(--fs-ui-sm); color: var(--text-tertiary); }
+/* The project line breaks onto a second line rather than run under the bar's buttons: a long owner/name has no space
+   to break at, and on a narrow phone it does not fit beside ↗ and Sync (#61 with #59). */
+.topbar-sub { font-size: var(--fs-ui-sm); color: var(--text-tertiary); overflow-wrap: anywhere; }
 .topbar-actions { display: flex; gap: var(--space-3); }
 .topbar-actions button, a.link-button { padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
 /* A link to a page outside the app, drawn as a button is. */
@@ -70,6 +72,10 @@ button.danger { border-color: var(--border-danger); color: var(--text-invalid); 
 .project { width: 100%; text-align: left; font-weight: var(--fw-regular); border-radius: 0; border-width: 0 0 var(--stroke-hair); border-color: var(--border); background: transparent; }
 .project-text { display: flex; flex-direction: column; gap: 2px; }
 .project-name { font-weight: var(--fw-heavy); color: var(--text-heading); }
+/* A project on this device: its row opens it, and Sync sits at the row's right end (#59). */
+.project-row { display: flex; align-items: center; gap: var(--space-3); border-bottom: var(--stroke-hair) solid var(--border); }
+.project-row > .project { flex: 1; min-width: 0; border-width: 0; }
+.row-sync { flex: none; padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
 .book { display: flex; justify-content: space-between; align-items: center; gap: var(--space-5); padding: var(--space-5) 0; border-bottom: var(--stroke-hair) solid var(--border); }
 .book-name { font-size: var(--fs-title); font-weight: var(--fw-black); color: var(--text-heading); letter-spacing: var(--track-17); }
 .book-tools { display: flex; gap: var(--space-3); }

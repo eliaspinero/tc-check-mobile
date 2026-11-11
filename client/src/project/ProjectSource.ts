@@ -39,6 +39,10 @@ export interface ProjectSource {
    * packs, then the decision file written again from them. The only write to a project: nothing else in the client
    * writes a project file. A project not in that format refuses (409). */
   recordDecision(repoPath: string, decision: DecisionToRecord): Promise<void>;
+  /** Checkpoint a project in the Rust tC4's format (the shell's `tc.rs`, #59): the decisions saved since the last one
+   * are sealed into a pack, the decision files are written again from the fold, and the folder is committed. Any other
+   * project is left as it is. */
+  checkpoint(repoPath: string): Promise<void>;
   /** Sync a project in the Rust tC4's format with Door43 as the Rust tC4 does (the shell's `tc.rs`): its decisions
    * go up, the teammates' come down. Never `pull` on such a project: git would merge the two histories. */
   syncTc(repoPath: string, as: { username: string; token: string }): Promise<TcSyncResult>;

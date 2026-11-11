@@ -16,6 +16,7 @@ import { tsEngine } from './engine/tsEngine';
 import type { Tool } from './engine/CheckingEngine';
 import type { Session } from './session/loadSession';
 import { forgetAfterInstall, keepNow, keepUsername, keptUsername, keys, restoreKept } from './session/kept';
+import { checkpoint } from './session/decide';
 import { t } from './i18n';
 
 type Screen =
@@ -68,6 +69,20 @@ export default function App() {
       else next.delete(key);
       return next;
     });
+
+  // The project open on screen is checkpointed when the app goes to the background (#59): Android may end the app
+  // there. On `window`, which the event reaches after `document`: the check screen's own listener there saves the
+  // words tapped first, and the checkpoint waits for that save.
+  const openProject = 'repoPath' in screen ? screen.repoPath : null;
+  useEffect(() => {
+    if (!openProject) return;
+    const hidden = () => {
+      // A checkpoint that fails leaves the decisions in the pending log; the next one seals them.
+      if (document.visibilityState === 'hidden') checkpoint(openProject, source).catch(() => undefined);
+    };
+    window.addEventListener('visibilitychange', hidden);
+    return () => window.removeEventListener('visibilitychange', hidden);
+  }, [openProject, source]);
 
   // A token kept from an earlier session signs the checker in again. Only Door43's own refusal (401/403)
   // forgets it; with no internet the checker keeps working on the projects already on this device.
@@ -135,7 +150,13 @@ export default function App() {
           source={source}
           engine={engine}
           onPick={(book, tool) => go({ name: 'list', repoPath: screen.repoPath, book, tool })}
-          onBack={() => go({ name: 'projects' }, true)}
+          onBack={() => {
+            // Leaving the project checkpoints it (#59). One that fails leaves the decisions in the pending log, and
+            // the next opening seals them.
+            checkpoint(screen.repoPath, source).catch(() => undefined);
+            go({ name: 'projects' }, true);
+          }}
+          door43={session}
         />
       );
     case 'list':
@@ -163,16 +184,16 @@ export default function App() {
           source={source}
           engine={engine}
           onIndex={(index) => setScreen({ ...screen, index })}
-          // A save lands after the tap; by then the checker may have moved on. Only the screen it was made
-          // on, still showing the same list, takes the new session, at whichever check it shows now.
-          onDecided={(s) => {
-            // The new session replaces the kept one, so the list and the book's progress show it after Back.
-            keepNow(keys.session(screen.repoPath, screen.tool, screen.book), s);
+          // A save lands after the tap; by then the checker may have moved on. The check screen keeps the new session
+          // (kept.ts) for the list and the book's progress; only the screen it was made on, still showing the same
+          // list, takes it, at whichever check it shows now.
+          onSession={(s) =>
             setScreen((cur) =>
               cur.name === 'check' && cur.repoPath === screen.repoPath && cur.book === screen.book && cur.tool === screen.tool ? { ...cur, session: s } : cur,
-            );
-          }}
+            )
+          }
           onBack={() => go({ name: 'list', repoPath: screen.repoPath, book: screen.book, tool: screen.tool, focus: screen.index }, true)}
+          door43={session}
         />
       );
     default:

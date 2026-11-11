@@ -105,7 +105,7 @@ export const loadSession = async (repoPath: string, tool: Tool, book: string, so
     source.listPaths(repoPath),
   ]);
   // In either format the decisions are read from the decision file. In the Rust tC4's it is the fold's projection,
-  // written again by every decision before it answers, and by every open of the project (tc.rs).
+  // written again by the project's checkpoint (tc.rs), which runs before a project's screens read it (#59).
   const journaled = isTcProject(paths);
   const { items, unplaceable } = await engine.deriveItems({
     tsv,

@@ -1,9 +1,10 @@
 import { stateDir } from '../../dev-env/stateDir.mjs';
 
 // The tc-check lane: this repository's pankosmia-web rig on 19980 and the Vite dev client on 5180.
-// See dev-env/README.md. CLIENT_PORT moves Vite for a worktree whose sibling already holds 5180; the rig
-// and its state folder stay shared.
-export const RIG_URL = 'http://127.0.0.1:19980';
+// See dev-env/README.md. CLIENT_PORT moves Vite for a worktree whose sibling already holds 5180; the rig and its
+// state folder stay shared. RIG_PORT (with RIG_STATE, dev-env/stateDir.mjs) points at a rig of its own, started from a
+// worktree whose shell routes (tc.rs) changed, so the other worktrees' journeys keep the rig they run against.
+export const RIG_URL = `http://127.0.0.1:${process.env.RIG_PORT ?? 19980}`;
 export const CLIENT_PORT = Number(process.env.CLIENT_PORT ?? 5180);
 export const CLIENT_URL = `http://127.0.0.1:${CLIENT_PORT}/clients/tc-check/`;
 
@@ -27,9 +28,21 @@ const post = async (route: string): Promise<void> => {
 
 export const listLocal = async (): Promise<string[]> => (await (await fetch(`${RIG_URL}/api/git/list-local-repos`)).json()) as string[];
 
-/** Put a copy of a rig repo at `target` (for example a Door43-shaped path), replacing any old copy. */
+/** Checkpoint the project as the app does when the checker leaves it (#59): what the shell's store saved is sealed
+ * into a pack, the decision files are written again, and the store lets the folder go. */
+export const checkpoint = async (repoPath: string): Promise<void> => {
+  const res = await fetch(`${RIG_URL}/api/tc/checkpoint/${repoPath}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`checkpoint ${repoPath}: ${res.status} ${await res.text()}`);
+};
+
+/** Put a copy of a rig repo at `target` (for example a Door43-shaped path), replacing any old copy. An old copy the
+ * shell's store still holds open (a test that ended on a decision, #59) is checkpointed first, which lets it go. */
 export const placeRepo = async (src: string, target: string): Promise<void> => {
-  if ((await listLocal()).includes(target)) await post(`/git/delete/${target}`);
+  if ((await listLocal()).includes(target)) {
+    // Not `checkpoint`: a rig built before #59 has no such route, and holds nothing open.
+    await fetch(`${RIG_URL}/api/tc/checkpoint/${target}`, { method: 'POST' });
+    await post(`/git/delete/${target}`);
+  }
   await post(`/git/copy/${src}?target_path=${encodeURIComponent(target)}`);
 };
 

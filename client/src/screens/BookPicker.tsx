@@ -10,6 +10,7 @@ import TopBar from './TopBar';
 import Sheet from './Sheet';
 import ErrorLine from './ErrorLine';
 import Skeleton from './Skeleton';
+import SyncButton, { useSync } from './SyncButton';
 import { stagger } from './stagger';
 import { LOADING, failure, ready, type Load } from './load';
 
@@ -18,15 +19,24 @@ const progressOf = (s: Session) => (s.state === 'ready' ? s.progress : null);
 
 const TOOLS: Tool[] = ['translationWords', 'translationNotes'];
 
-type Props = { repoPath: string; source: ProjectSource; engine: CheckingEngine; onPick: (book: string, tool: Tool) => void; onBack: () => void };
+type Props = {
+  repoPath: string;
+  source: ProjectSource;
+  engine: CheckingEngine;
+  onPick: (book: string, tool: Tool) => void;
+  onBack: () => void;
+  /** The checker signed in: Sync runs as them. */
+  door43: { username: string; token: string };
+};
 
-export default function BookPicker({ repoPath, source, engine, onPick, onBack }: Props) {
+export default function BookPicker({ repoPath, source, engine, onPick, onBack, door43 }: Props) {
   // What this run has read already shows at once (session/kept.ts); the rest is read in the background.
   const [scope, setScope] = useState<Load<string[]>>(() => {
     const known = kept<string[]>(keys.scope(repoPath));
     return known ? { state: 'ready', value: known } : LOADING;
   });
   const books = ready(scope);
+
   // `${book} ${tool}` → its progress, or null when the list cannot be shown (the list says why).
   const [progress, setProgress] = useState<Record<string, { decided: number; total: number } | null>>(() => {
     const known: Record<string, { decided: number; total: number } | null> = {};
@@ -40,12 +50,15 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
     return known;
   });
 
-  useEffect(() => {
+  const loadScope = useCallback(() => {
     keep(keys.scope(repoPath), () => source.readMetadata(repoPath).then((meta) => Object.keys(scopeOf(meta)))).then(
       (value) => setScope({ state: 'ready', value }),
       (e: Error) => setScope({ state: 'failed', message: e.message }),
     );
   }, [repoPath, source]);
+  useEffect(loadScope, [loadScope]);
+  // A Sync that worked reads the books again.
+  const { run: syncRun, sync } = useSync(repoPath, door43, source, loadScope);
 
   // One book and tool at a time, in the background: a tap never waits for it, and a list it opens shares the read.
   useEffect(() => {
@@ -83,10 +96,13 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
         sub={repoPath.split('/').slice(-2).join('/')}
         onBack={onBack}
         actions={
-          // An icon, so a long project name keeps the bar's width (#61 review).
-          <button className="icon" aria-label={t('openOnDoor43')} aria-haspopup="dialog" onClick={() => setLeaving(true)}>
-            ↗
-          </button>
+          <>
+            {/* An icon, so a long project name keeps the bar's width (#61 review). */}
+            <button className="icon" aria-label={t('openOnDoor43')} aria-haspopup="dialog" onClick={() => setLeaving(true)}>
+              ↗
+            </button>
+            <SyncButton syncing={syncRun.state === 'syncing'} onSync={sync} />
+          </>
         }
       />
       <Sheet open={leaving} onClose={closeLeaving} labelledBy="leaving-title">
@@ -101,7 +117,7 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
           </a>
         </div>
       </Sheet>
-      <ErrorLine text={failure(scope)} />
+      <ErrorLine text={failure(syncRun) ?? failure(scope)} />
       {scope.state === 'loading' && <Skeleton shape="books" label={t('loadingBooks')} />}
       {books?.map((book, i) => (
         <div key={book} className="book enter" style={stagger(i)}>

@@ -60,6 +60,8 @@ export const es: Strings = {
   bookToolLoading: '{name}, cargando',
 
   sync: 'Sincronizar',
+  syncProject: 'Sincronizar {name}',
+  syncingProject: 'Sincronizando {name}…',
   syncFailed: 'No se sincronizó: {reason}',
   syncKept: 'Lo que llegó de tus compañeros se conserva.',
   syncOffline: 'no hay conexión a internet. Tus decisiones están guardadas en este teléfono.',

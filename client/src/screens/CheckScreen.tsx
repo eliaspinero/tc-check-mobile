@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ArticleBlock, CheckingEngine, CheckItem, DecisionPatch, Selection, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
-import { loadSession, type Session } from '../session/loadSession';
+import type { Session } from '../session/loadSession';
 import { decide } from '../session/decide';
 import type { CheckContext } from '../session/loadCheckContext';
-import { contextOf, keepRead, keys, kept, resourceText } from '../session/kept';
+import { contextOf, keepRead, keys, kept, resourceText, sessionOf } from '../session/kept';
+import { withDecision } from '../session/withDecision';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import { useSwipe } from './useSwipe';
@@ -17,6 +18,7 @@ import { noteWithoutAcademyLinks } from './noteText';
 import { splitTitle } from './articleTitle';
 import ErrorLine from './ErrorLine';
 import Skeleton from './Skeleton';
+import SyncButton, { useSync } from './SyncButton';
 import { IDLE, LOADING, failure, ready, type Load, type Run } from './load';
 
 type Props = {
@@ -28,9 +30,12 @@ type Props = {
   source: ProjectSource;
   engine: CheckingEngine;
   onIndex: (index: number) => void;
-  /** The session again after a decision, so the list and its progress follow at once. */
-  onDecided: (session: Session) => void;
+  /** The session with a decision the store has saved, or read again after a Sync, so the screen, the list and its
+   * progress show it. */
+  onSession: (session: Session) => void;
   onBack: () => void;
+  /** The checker signed in: Sync runs as them. */
+  door43: { username: string; token: string };
 };
 
 /** The target verse text with each selectable word wrapped, punctuation and spacing kept as written.
@@ -173,7 +178,7 @@ type SavedStatus = 'valid' | 'invalid' | null;
 const savedStatus = (item: CheckItem): SavedStatus => (item.status === 'valid' || item.status === 'invalid' ? item.status : null);
 const decisionOf = (engine: CheckingEngine, item: CheckItem) => (engine.progress([item]).decided === 1 ? (item.status === 'invalid' ? 'invalid' : 'valid') : null);
 
-export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onDecided, onBack }: Props) {
+export default function CheckScreen({ repoPath, book, tool, session, index, source, engine, onIndex, onSession, onBack, door43 }: Props) {
   // What this run has read already shows at once (session/kept.ts).
   const [context, setContext] = useState<Load<CheckContext>>(() => {
     const known = kept<CheckContext>(keys.context(repoPath, book, session.rung));
@@ -228,26 +233,34 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
   const ref = refOf(item);
   const targetText = ctx ? engine.verseText(verseOf(ctx.target, item)) : '';
   const target = ctx ? engine.targetTokens(targetText, item.selections as Selection[] | false) : null;
-  // The words tapped on each check, by its index, until the session read after their save has them; without taps,
-  // the stored selection.
+  // The words tapped on each check, by its index, until the session has them after their save; without taps, the
+  // stored selection.
   const [tapped, setTapped] = useState<ReadonlyMap<number, ReadonlySet<number>>>(new Map());
   const chosen: ReadonlySet<number> = tapped.get(index) ?? new Set(target?.selected ?? []);
 
   // The buttons' run: only Valid and Invalid show "Saving…" and wait; a save of the words alone runs behind them.
   const [status, setStatus] = useState<Run<{ state: 'saving' }>>(IDLE);
-  /** Records `patch` on the check at `at`, then reloads the session; its taps give way to the saved words. */
+  /** Records `patch` on the check at `at`; once the store has it, the session shows it and its taps give way to the
+   * saved words. Nothing is read again (#59). */
   const record = async (at: number, patch: DecisionPatch, words: ReadonlySet<number>) => {
     if (!session.pin) return;
-    // The session read after the decision is kept before it lands, so a list opened by Back meanwhile shows it (#44).
-    const fresh = decide({ repoPath, tool, item: session.items[at], patch, pin: session.pin }, source).then(() =>
-      loadSession(repoPath, tool, book, source, engine),
+    // The session after the decision is kept from the tap, so a list opened by Back before the store answers waits
+    // for it (#44). It is built on the kept session as it is then, which holds the decisions still on their way; one
+    // of those that failed leaves this one on the session on screen.
+    const before = sessionOf(repoPath, tool, book, source, engine).catch(() => session);
+    const after = decide({ repoPath, tool, item: session.items[at], patch, pin: session.pin }, source).then(async () =>
+      withDecision(await before, at, patch, engine),
     );
-    keepRead(keys.session(repoPath, tool, book), fresh);
-    onDecided(await fresh);
+    keepRead(keys.session(repoPath, tool, book), after);
+    onSession(await after);
     // Taps made while it saved stay: they are the next change.
     setTapped((old) => (old.get(at) === words ? new Map([...old].filter(([i]) => i !== at)) : old));
   };
   const failed = (e: unknown) => setStatus({ state: 'failed', message: (e as Error).message });
+
+  // Sync runs beside the decisions: a decision tapped meanwhile waits for it in the shell. Then the session is read
+  // again, with the teammates' decisions.
+  const { run: syncRun, sync } = useSync(repoPath, door43, source, () => sessionOf(repoPath, tool, book, source, engine).then(onSession, failed));
 
   // A change of the words alone is saved 1 s after the last tap, or at once when the checker leaves the check or the
   // app goes to the background, as the Rust tC4 saves it (STORAGE.md §5.4). The status stays as it is.
@@ -334,8 +347,9 @@ export default function CheckScreen({ repoPath, book, tool, session, index, sour
         }
         onBack={onBack}
         onTitle={() => setPicking(true)}
+        actions={<SyncButton syncing={syncRun.state === 'syncing'} onSync={sync} />}
       />
-      <ErrorLine text={failure(context) ?? failure(status)} />
+      <ErrorLine text={failure(context) ?? failure(status) ?? failure(syncRun)} />
       {/* The check's content: it follows a swipe, with the checks before and after it at its edges. */}
       <div className="slide" ref={swipe.content}>
         {context.state === 'loading' && <Skeleton shape="check" label={t('loadingCheck')} />}
