@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type MouseEvent } from 'react';
+import { openExternal } from '../device/tauri';
 import type { CheckingEngine, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { scopeOf, type Session } from '../session/loadSession';
-import { keep, kept, keptFailed, keys, sessionOf } from '../session/kept';
+import { keep, kept, keptFailed, keptProgress, keys, sessionOf } from '../session/kept';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import TopBar from './TopBar';
+import Sheet from './Sheet';
 import ErrorLine from './ErrorLine';
 import Skeleton from './Skeleton';
 import SyncButton, { useSync } from './SyncButton';
@@ -75,6 +77,17 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack, d
     };
   }, [books, repoPath, source, engine]);
 
+  // Every project here was opened from Door43, so its repo path is `<host>/<owner>/<repo>`.
+  const door43Url = `https://${repoPath}`;
+  // Opening Door43 leaves the app, so a sheet asks first.
+  const [leaving, setLeaving] = useState(false);
+  const closeLeaving = useCallback(() => setLeaving(false), []);
+  // In the app, the phone's browser opens the page, not the app's own window; in a plain browser the link opens it.
+  const openOnDoor43 = (e: MouseEvent) => {
+    if (openExternal(door43Url)) e.preventDefault();
+    setLeaving(false);
+  };
+
   return (
     <main className="screen">
       <TopBar
@@ -82,8 +95,28 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack, d
         title={t('booksTitle')}
         sub={repoPath.split('/').slice(-2).join('/')}
         onBack={onBack}
-        actions={<SyncButton syncing={syncRun.state === 'syncing'} onSync={sync} />}
+        actions={
+          <>
+            {/* An icon, so a long project name keeps the bar's width (#61 review). */}
+            <button className="icon" aria-label={t('openOnDoor43')} aria-haspopup="dialog" onClick={() => setLeaving(true)}>
+              ↗
+            </button>
+            <SyncButton syncing={syncRun.state === 'syncing'} onSync={sync} />
+          </>
+        }
       />
+      <Sheet open={leaving} onClose={closeLeaving} labelledBy="leaving-title">
+        <div className="sheet-head">
+          <h2 id="leaving-title">{t('leavingTitle')}</h2>
+        </div>
+        <p>{t('leavingBody', { place: repoPath })}</p>
+        <div className="sheet-actions">
+          <button onClick={closeLeaving}>{t('cancel')}</button>
+          <a className="link-button primary" href={door43Url} target="_blank" rel="noreferrer" onClick={openOnDoor43}>
+            {t('open')}
+          </a>
+        </div>
+      </Sheet>
       <ErrorLine text={failure(syncRun) ?? failure(scope)} />
       {scope.state === 'loading' && <Skeleton shape="books" label={t('loadingBooks')} />}
       {books?.map((book, i) => (
@@ -92,7 +125,8 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack, d
           <span className="book-tools">
             {TOOLS.map((tool) => {
               const key = `${book} ${tool}`;
-              const counts = progress[key];
+              // Until this run counts it, the progress counted last, also before the app restarted.
+              const counts = progress[key] !== undefined ? progress[key] : keptProgress(repoPath, book, tool);
               const name = `${bookName(book)} ${toolName(tool)}`;
               // The label replaces the button's content for a screen reader, so it says the progress too.
               const label =

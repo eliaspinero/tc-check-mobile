@@ -1,3 +1,4 @@
+mod kept;
 mod limits;
 mod ping;
 mod tc;
@@ -138,13 +139,30 @@ fn setup_pankosmia(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// The folder the client's kept results live in (kept.rs): the app's private data directory, beside the token.
+fn kept_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(app.path().app_data_dir().map_err(|e| e.to_string())?.join("kept"))
+}
+
+/// The text the client kept under `name`, or null (#44).
+#[tauri::command]
+fn kept_read(app: tauri::AppHandle, name: String) -> Result<Option<String>, String> {
+    kept::read(&kept_dir(&app)?, &name).map_err(|e| e.to_string())
+}
+
+/// Keeps the client's `value` under `name` (#44).
+#[tauri::command]
+fn kept_write(app: tauri::AppHandle, name: String, value: String) -> Result<(), String> {
+    kept::write(&kept_dir(&app)?, &name, &value).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![wait_for_server, token::token_keep, token::token_read, token::token_forget])
+        .invoke_handler(tauri::generate_handler![wait_for_server, token::token_keep, token::token_read, token::token_forget, kept_read, kept_write])
         .plugin(tauri_plugin_log::Builder::default().build())
         .setup(|app: &mut App| setup_pankosmia(app))
         .run(tauri::generate_context!())

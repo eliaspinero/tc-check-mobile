@@ -1,25 +1,27 @@
 /* Every colour, typeface, size, space and corner here is a tC4 token (theme.css). */
 :root { font-family: var(--font-ui); font-size: var(--fs-title-sm); line-height: var(--lh-ui); color: var(--text-body); background: var(--surface-app); -webkit-font-smoothing: antialiased; }
 body { margin: 0; }
-.screen { padding: var(--space-7); max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-5); }
+/* A screen's content stays between the status bar and the navigation bar (--safe-top, --safe-bottom, theme.css), also a
+   screen with no top bar (the start-up skeleton). */
+.screen { padding: calc(var(--space-7) + var(--safe-top)) var(--space-7) calc(var(--space-7) + var(--safe-bottom)); max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-5); }
 h1 { font-size: var(--fs-h3); font-weight: var(--fw-black); color: var(--text-heading); letter-spacing: var(--track-20); line-height: var(--lh-tight); margin: var(--space-3) 0; }
 label { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--fs-ui-md); font-weight: var(--fw-heavy); color: var(--text-secondary); }
 /* 16 px in fields, so a phone does not zoom in on focus. */
 input { font-family: inherit; font-size: var(--fs-title-sm); min-height: var(--space-20); padding: var(--space-4); border: var(--stroke) solid var(--border-input); border-radius: var(--radius-input); background: var(--surface-card); color: var(--text-body); box-sizing: border-box; }
 /* Every button is a 44 px touch target, whatever tC4's desktop controls measure. */
-button { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
+button, a.link-button { font-family: inherit; font-size: var(--fs-title-sm); font-weight: var(--fw-heavy); min-height: var(--space-20); padding: var(--space-5); border-radius: var(--radius-pill); border: var(--stroke) solid var(--border-input); background: var(--surface-card); color: var(--text-body); }
 /* tC4's Inspire fill carries white text at 2.6:1; its 700 step keeps the Inspire hue and passes AA (5.6:1). */
-button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
+button.primary, a.link-button.primary { background: var(--uw-inspire-700); border-color: var(--uw-inspire-700); color: var(--text-inverse); box-shadow: var(--shadow-raised); }
 /* Under the pointer a button darkens a little, and a little more while pressed (a finger gets the press only): a dark
    layer over its fill and under its text, shown by its opacity so it fades. Its own colours never change. */
-button { position: relative; isolation: isolate; }
-button::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--uw-black); opacity: 0; pointer-events: none; }
+button, a.link-button { position: relative; isolation: isolate; }
+button::after, a.link-button::after { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--uw-black); opacity: 0; pointer-events: none; }
 @media (hover: hover) {
-  button:enabled:hover::after { opacity: 0.08; }
+  button:enabled:hover::after, a.link-button:hover::after { opacity: 0.08; }
   /* On the Ocean sheet the ground is already dark, so the layer needs more to show. */
   .bottombar .decide button:enabled:hover::after { opacity: 0.22; }
 }
-button:enabled:active::after { opacity: 0.14; }
+button:enabled:active::after, a.link-button:active::after { opacity: 0.14; }
 .bottombar .decide button:enabled:active::after { opacity: 0.32; }
 .error { color: var(--text-invalid); font-size: var(--fs-ui-md); }
 .row { display: flex; justify-content: space-between; align-items: center; padding: var(--space-5) var(--space-1); border-bottom: var(--stroke-hair) solid var(--border); }
@@ -47,14 +49,20 @@ button:enabled:active::after { opacity: 0.14; }
 mark.hl { background: var(--tc-highlight-soft); color: inherit; border-radius: var(--radius-xs); padding: 0 1px; }
 .sel { background: var(--surface-accent-soft); color: var(--text-accent); border-radius: var(--radius-xs); padding: 0 1px; }
 
-/* Top bar on every screen: back arrow, the place, the screen's actions. */
-.topbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--space-3); margin: calc(-1 * var(--space-7)) calc(-1 * var(--space-7)) 0; padding: var(--space-2) var(--space-5); background: var(--surface-app); border-bottom: var(--stroke-hair) solid var(--border); }
+/* Top bar on every screen: back arrow, the place, the screen's actions. Its ground runs up behind the status bar, so the
+   status bar takes the bar's colour, and its content starts below it (--safe-top, theme.css). Its margin undoes the
+   screen's top padding. */
+.topbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--space-3); margin: calc(-1 * (var(--space-7) + var(--safe-top))) calc(-1 * var(--space-7)) 0; padding: calc(var(--space-2) + var(--safe-top)) var(--space-5) var(--space-2); background: var(--surface-app); border-bottom: var(--stroke-hair) solid var(--border); }
 .topbar-place { flex: 1; min-width: 0; }
 .topbar h1 { margin: 0; font-size: var(--fs-title); letter-spacing: var(--track-17); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .topbar-sub { font-size: var(--fs-ui-sm); color: var(--text-tertiary); }
 .topbar-actions { display: flex; gap: var(--space-3); }
-.topbar-actions button { padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
-button.icon { border: none; background: transparent; font-size: 22px; line-height: 1; min-width: var(--space-20); padding: var(--space-2) var(--space-4); }
+.topbar-actions button, a.link-button { padding: var(--space-3) var(--space-5); font-size: var(--fs-ui-md); }
+/* A link to a page outside the app, drawn as a button is. */
+a.link-button { display: inline-flex; align-items: center; box-sizing: border-box; text-decoration: none; }
+/* Back, Close and the bar's icons: Android's 48 dp touch target, so a tap aimed at them, right under the status bar,
+   does not pull the notifications down. */
+button.icon { border: none; background: transparent; font-size: 22px; line-height: 1; min-width: 48px; min-height: 48px; padding: var(--space-2) var(--space-4); }
 button.title-button { border: none; border-radius: var(--radius-sm); background: transparent; padding: 0; font: inherit; color: inherit; text-align: left; max-width: 100%; }
 button.danger { border-color: var(--border-danger); color: var(--text-invalid); }
 
@@ -86,9 +94,10 @@ button.tool { display: flex; flex-direction: column; align-items: center; gap: 2
 .sheet-backdrop { position: fixed; inset: 0; z-index: 10; background: var(--scrim-drawer); display: flex; align-items: flex-end; justify-content: center; }
 /* Closed (ChapterGrid), out of the way at once, even while it fades out. */
 .sheet-backdrop[hidden] { display: none; pointer-events: none; }
-.sheet { width: 100%; max-width: 560px; max-height: 80vh; overflow: auto; background: var(--surface-app); border-radius: var(--radius-xl) var(--radius-xl) 0 0; box-shadow: var(--shadow-modal); padding: var(--space-5) var(--space-7) var(--space-8); }
+.sheet { width: 100%; max-width: 560px; max-height: 80vh; overflow: auto; background: var(--surface-app); border-radius: var(--radius-xl) var(--radius-xl) 0 0; box-shadow: var(--shadow-modal); padding: var(--space-5) var(--space-7) calc(var(--space-8) + var(--safe-bottom)); }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; }
 .sheet-head h2 { font-size: var(--fs-title); font-weight: var(--fw-black); color: var(--text-heading); margin: 0; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: var(--space-3); }
 .chapter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); margin-top: var(--space-5); }
 button.chapter { position: relative; padding: var(--space-6) 0; border-radius: var(--radius-sm); }
 button.chapter.current { border-color: var(--accent); color: var(--text-accent); font-weight: var(--fw-black); }
@@ -117,7 +126,7 @@ button.chapter .done-mark { position: absolute; top: 2px; right: var(--space-2);
 .chevron { color: var(--text-tertiary); }
 .help-toggle[aria-expanded='true'] .chevron { transform: rotate(180deg); }
 .pane.target .lb { color: var(--text-accent); }
-.bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5) var(--space-7) calc(var(--space-7) + env(safe-area-inset-bottom)); background: var(--uw-ocean); color: var(--text-inverse); border-radius: var(--radius-2xl) var(--radius-2xl) 0 0; border-top: 3px solid transparent; box-shadow: var(--shadow-sheet); max-width: 560px; margin: 0 auto; box-sizing: border-box; }
+.bottombar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5) var(--space-7) calc(var(--space-7) + var(--safe-bottom)); background: var(--uw-ocean); color: var(--text-inverse); border-radius: var(--radius-2xl) var(--radius-2xl) 0 0; border-top: 3px solid transparent; box-shadow: var(--shadow-sheet); max-width: 560px; margin: 0 auto; box-sizing: border-box; }
 /* The sheet's top edge takes the colour of the check's decision: one layer per colour over the edge, shown by its
    opacity, so a change of decision fades from one colour to the other. */
 .bottombar::before, .bottombar::after { content: ''; position: absolute; inset: -3px 0 0; border-radius: inherit; border-top: 3px solid; opacity: 0; pointer-events: none; }
@@ -215,7 +224,7 @@ button:disabled { opacity: 0.45; }
   .peek .help-more { transition: none; }
   .bottombar .progress span { transition: transform var(--dur-panel) var(--ease-standard); }
   .bottombar .decide button { transition: opacity var(--dur-hover) var(--ease-standard); }
-  button::after { transition: opacity var(--dur-hover) var(--ease-standard); }
+  button::after, a.link-button::after { transition: opacity var(--dur-hover) var(--ease-standard); }
   .bottombar .decide button::before, .bottombar::before, .bottombar::after { transition: opacity var(--dur-panel) var(--ease-standard); }
   /* Closing fades out in half the time opening takes; the element stays drawn until the fade ends (allow-discrete). */
   .sheet-backdrop { transition: opacity calc(var(--dur-panel) / 2) var(--ease-standard), display calc(var(--dur-panel) / 2) allow-discrete; }

@@ -10,6 +10,12 @@
 @import url('ds/tokens/elevation.css');
 @import url('ds/tokens/motion.css');
 
+/* The room the system bars take at the top and the bottom of the screen. On Android the shell sets them (systemBars.ts). */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Valid and Invalid as text on a light ground. */
 :root {
   --text-valid: var(--tc-valid-strong);

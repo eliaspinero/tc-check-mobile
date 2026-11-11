@@ -7,7 +7,7 @@ import CheckList from './screens/CheckList';
 import CheckScreen from './screens/CheckScreen';
 import Skeleton from './screens/Skeleton';
 import { leaveScreen } from './screens/leave';
-import { Door43ApiError, door43Api, type Door43Session } from './door43/door43Api';
+import { door43Api, isRefused, type Door43Session } from './door43/door43Api';
 import { DCS_SERVER } from './door43/dcsServer';
 import { memoryTokenStore } from './door43/tokenStore';
 import { inTauri, tauriTokenStore } from './door43/tauriTokenStore';
@@ -15,7 +15,7 @@ import { pankosmiaSource } from './project/pankosmiaSource';
 import { tsEngine } from './engine/tsEngine';
 import type { Tool } from './engine/CheckingEngine';
 import type { Session } from './session/loadSession';
-import { forgetAfterInstall } from './session/kept';
+import { forgetAfterInstall, keepNow, keepUsername, keptUsername, keys, restoreKept } from './session/kept';
 import { checkpoint } from './session/decide';
 import { t } from './i18n';
 
@@ -36,7 +36,15 @@ export default function App() {
   // or a checker on slow data signs in again and races the restore (the new token could be forgotten).
   const [auth, setAuth] = useState<{ state: 'restoring' } | { state: 'signedOut' } | { state: 'signedIn'; session: Door43Session }>({ state: 'restoring' });
   const session = auth.state === 'signedIn' ? auth.session : null;
-  const signIn = (s: Door43Session) => setAuth({ state: 'signedIn', session: s });
+  // Signed in: what this phone kept for the checker (their last project list, the books' progress) is read first,
+  // so the projects screen shows it at once; their username is kept beside the token for the next start.
+  const signIn = async (s: Door43Session) => {
+    if (s.username) {
+      keepUsername(host, s.username);
+      await restoreKept(host, s.username);
+    }
+    setAuth({ state: 'signedIn', session: s });
+  };
   const [screen, setScreen] = useState<Screen>({ name: 'projects' });
   // Into a screen, the new screen slides in from the end; Back, from the start (app.css, `data-nav`), while the old
   // one shifts a little the other way and fades under it (leave.ts). Moves within a screen (a check to the next)
@@ -79,21 +87,27 @@ export default function App() {
   // A token kept from an earlier session signs the checker in again. Only Door43's own refusal (401/403)
   // forgets it; with no internet the checker keeps working on the projects already on this device.
   useEffect(() => {
-    store
-      .read()
-      .then(async (token) => {
+    Promise.all([store.read(), keptUsername(host)])
+      .then(async ([token, username]) => {
         if (!token) return setAuth({ state: 'signedOut' });
+        // With the username kept too, the projects show without waiting for Door43, which checks the token behind them.
+        if (username) {
+          await signIn({ username, token });
+          // Only while that token is still the one in use: a checker who signed in again meanwhile stays signed in.
+          api.userOf(token).catch((e: unknown) => isRefused(e) && live.current?.token === token && signOut());
+          return;
+        }
         try {
-          signIn({ username: await api.userOf(token), token });
+          await signIn({ username: await api.userOf(token), token });
         } catch (e) {
-          if (e instanceof Door43ApiError && (e.status === 401 || e.status === 403)) {
+          if (isRefused(e)) {
             await store.forget();
             setAuth({ state: 'signedOut' });
-          } else signIn({ username: '', token });
+          } else await signIn({ username: '', token });
         }
       })
       .catch(() => setAuth({ state: 'signedOut' }));
-  }, [api, store]);
+  }, [api, store, host]);
 
   // Sign out: the kept token leaves this device and the sign-in form shows. No Door43 call, as tC4's signOut.
   const signOut = () => {
