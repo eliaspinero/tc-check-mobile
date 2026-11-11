@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CheckingEngine, CheckItem, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
-import { isTcProject, syncTc } from '../session/decide';
-import { syncFailureText } from './syncFailure';
 import type { Session } from '../session/loadSession';
-import { contextOf, forgetProject, keptResourceText, keys, kept, resourceText, sessionOf } from '../session/kept';
+import { contextOf, keptResourceText, keys, kept, resourceText, sessionOf } from '../session/kept';
 import { t } from '../i18n';
 import type { Strings } from '../i18n/en';
 import { bookName, toolName } from '../i18n/books';
@@ -16,6 +14,7 @@ import { noteWithoutAcademyLinks } from './noteText';
 import { splitTitle } from './articleTitle';
 import ErrorLine from './ErrorLine';
 import Skeleton from './Skeleton';
+import SyncButton, { useSync } from './SyncButton';
 import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import type { CheckContext } from '../session/loadCheckContext';
@@ -51,9 +50,8 @@ const articleKey = (item: CheckItem) => `${(item.category as string | undefined)
 export default function CheckList({ repoPath, tool, book, source, engine, focus, onOpen, onBack, door43 }: Props) {
   // What this run has read already shows at once (session/kept.ts).
   const [session, setSession] = useState<Session | null>(() => kept<Session>(keys.session(repoPath, tool, book)) ?? null);
-  // The list's one status line: nothing to say, a Sync running, or why loading or syncing failed.
-  // A failure shows over the list already on screen, which stays.
-  const [status, setStatus] = useState<Run<{ state: 'syncing' }>>(IDLE);
+  // Why loading failed, over the list already on screen, which stays.
+  const [status, setStatus] = useState<Run<never>>(IDLE);
   const [chapter, setChapter] = useState<number | null>(null);
   const [picking, setPicking] = useState(false);
   const [ctx, setCtx] = useState<CheckContext | null>(() =>
@@ -76,31 +74,8 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
   }, [repoPath, tool, book, source, engine]);
   useEffect(load, [load]);
 
-  // Sync: a project in the Rust tC4's format syncs as the Rust tC4 does, both ways; any other only brings Door43
-  // main into this copy (it holds nothing the phone wrote). Then the list reloads.
-  const sync = async () => {
-    setStatus({ state: 'syncing' });
-    try {
-      // The project's own format decides, not the list: Sync may be tapped before the list has loaded.
-      if (isTcProject(await source.listPaths(repoPath))) {
-        const result = await syncTc(repoPath, door43, source);
-        if (!result.synced) {
-          setStatus({ state: 'failed', message: syncFailureText(result.failure) });
-          return;
-        }
-        forgetProject(repoPath);
-        load();
-        return;
-      }
-      await source.enableNet();
-      await source.pull(repoPath);
-      forgetProject(repoPath);
-      load();
-    } catch (e) {
-      setStatus({ state: 'failed', message: (e as Error).message });
-    }
-  };
-  const syncing = status.state === 'syncing';
+  // Sync, then the list reads the project again.
+  const { run: syncRun, sync } = useSync(repoPath, door43, source, load);
 
   const items = session?.state === 'ready' ? session.items : [];
   const focused = focus !== undefined ? items[focus] : undefined;
@@ -155,13 +130,9 @@ export default function CheckList({ repoPath, tool, book, source, engine, focus,
         sub={toolName(tool)}
         onBack={onBack}
         onTitle={session?.state === 'ready' ? () => setPicking(true) : undefined}
-        actions={
-          <button onClick={sync} disabled={syncing}>
-            {syncing ? t('syncing') : t('sync')}
-          </button>
-        }
+        actions={<SyncButton syncing={syncRun.state === 'syncing'} onSync={sync} />}
       />
-      <ErrorLine text={failure(status)} />
+      <ErrorLine text={failure(syncRun) ?? failure(status)} />
       {!session && status.state !== 'failed' && <Skeleton shape="checks" label={t('loadingChecks')} />}
       {session && session.state !== 'ready' && <p>{stateText(session)}</p>}
       {session?.state === 'ready' && (

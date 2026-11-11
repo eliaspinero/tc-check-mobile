@@ -2,24 +2,32 @@
 //! §5.4), through its own `tc-store`, at `POST /api/tc/decide/<repo path>`.
 //!
 //! The phone's projects are Pankosmia repositories under `<home>/pankosmia_repos/`. A project of
-//! the Rust tC4's format (one with `ingredients/tc/project.json`) is opened, the decision is saved
-//! as one `Check` change, and the project is closed again, which seals the change into a pack
-//! under `ingredients/tc/changes/`, rewrites `ingredients/checking/<tool>/<BOOK>.json` from the
-//! fold, and commits. The client reads that file back, so what it shows is the fold's projection.
+//! the Rust tC4's format (one with `ingredients/tc/project.json`) is opened on its first decision
+//! and stays open: each decision is saved as one `Check` change in the project's pending log
+//! (`.tc/pending`, written and synced before the request returns), so a tap waits for nothing
+//! more (#59).
+//!
+//! `POST /api/tc/checkpoint/<repo path>` closes the project, which seals the pending changes
+//! into a pack under `ingredients/tc/changes/`, rewrites `ingredients/checking/<tool>/<BOOK>.json`
+//! from the fold, and commits (STORAGE.md §5.13). The client asks for it when the checker leaves
+//! the project or opens it, and when the app goes to the background. A project left pending by
+//! an app that was closed first is opened and closed, which seals it the same way.
 //!
 //! `POST /api/tc/sync/<repo path>` syncs such a project with Door43 as the Rust tC4 does
 //! (STORAGE.md §9, `tc_sync::sync`): it seals, fetches, takes in the teammates' packs, commits
 //! the merge and pushes. Pankosmia's pull never runs on such a project: it would merge the two
 //! histories with git and leave conflict markers in the derived files.
 //!
-//! Nothing stays open between two requests, and one request runs at a time: a second open of a
-//! folder that is still open would be refused (`.tc/lock`). The shell and the journeys' rig both
-//! mount this file (`dev-env/rig/src/main.rs`), so the journeys run this code.
+//! One request runs at a time: a checker can tap Next and decide again, or tap Sync, before the
+//! first save is done. The shell and the journeys' rig both mount this file
+//! (`dev-env/rig/src/main.rs`), so the journeys run this code.
 
 use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::serde::Deserialize;
 use rocket::{Build, Rocket, State};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -41,10 +49,9 @@ pub struct Projects {
     /// The Door43 every project syncs with instead of `https://<host>`: the journeys' fake.
     /// `None` on a phone.
     door43: Option<ServerUrl>,
-    /// One request at a time: a second open of a folder that is still open would be refused
-    /// (`.tc/lock`), and a checker can tap Next and decide again, or tap Sync, before the first
-    /// save is done.
-    one_at_a_time: Mutex<()>,
+    /// The projects open now, by repo path, until their checkpoint. Its lock is held for a whole
+    /// request, so one request runs at a time.
+    held: Mutex<HashMap<PathBuf, ProjectHandle>>,
 }
 
 impl Projects {
@@ -75,12 +82,13 @@ impl Projects {
             store,
             repos,
             door43,
-            one_at_a_time: Mutex::new(()),
+            held: Mutex::new(HashMap::new()),
         })
     }
 
     /// Records one decision on the check `body` names, in the project at `repo` (a Pankosmia
-    /// repo path such as `git.door43.org/<org>/<repo>`), and closes the project again.
+    /// repo path such as `git.door43.org/<org>/<repo>`). The project stays open until
+    /// [`Projects::checkpoint`].
     ///
     /// # Errors
     ///
@@ -90,40 +98,54 @@ impl Projects {
     pub fn decide(&self, repo: &Path, body: &Decide) -> Result<(), DecideError> {
         let edit = body.edit()?;
         let (key, verse) = body.keys()?;
-        let _one = self
-            .one_at_a_time
-            .lock()
-            .expect("the decision lock is poisoned");
-        let handle = self.open(repo)?;
+        let mut held = self.held.lock().expect("the projects' lock is poisoned");
+        let handle = match held.entry(repo.to_owned()) {
+            Entry::Occupied(open) => open.into_mut(),
+            Entry::Vacant(closed) => closed.insert(self.open(repo)?),
+        };
         // The screen showed the fold as it is now: the list was read from this fold's projection,
         // and nothing else writes the project while a decision is made (one at a time, above).
-        let saved = (|| {
-            let shown = handle
-                .mint(&RecordKey::Check(key), None)
-                .map_err(|e| DecideError::Store(e.to_string()))?;
-            let verse_shown = handle
-                .mint(&verse, None)
-                .map_err(|e| DecideError::Store(e.to_string()))?;
-            handle
-                .submit(Command::SaveDecision {
-                    shown,
-                    verse_shown,
-                    value: edit,
-                })
-                .wait()
-                .map_err(|e| DecideError::Store(e.to_string()))
-        })();
-        // Closing checkpoints: the change is sealed into a pack, the decision file is written
-        // again from the fold, and the folder is committed (STORAGE.md §5.13).
-        let closed = handle
+        let shown = handle
+            .mint(&RecordKey::Check(key), None)
+            .map_err(|e| DecideError::Store(e.to_string()))?;
+        let verse_shown = handle
+            .mint(&verse, None)
+            .map_err(|e| DecideError::Store(e.to_string()))?;
+        // The wait ends once the change is in the pending log, synced to the disk.
+        handle
+            .submit(Command::SaveDecision {
+                shown,
+                verse_shown,
+                value: edit,
+            })
+            .wait()
+            .map_err(|e| DecideError::Store(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Checkpoints the project at `repo` by closing it: its pending changes are sealed into a
+    /// pack, the decision files are written again from the fold, and the folder is committed
+    /// (STORAGE.md §5.13). A project not open whose pending log holds changes (the app was closed
+    /// before its checkpoint) is opened and closed, which does the same. Any other folder, a
+    /// project of another format among them, is left alone.
+    ///
+    /// # Errors
+    ///
+    /// The store's refusal, in its words.
+    pub fn checkpoint(&self, repo: &Path) -> Result<(), DecideError> {
+        let mut held = self.held.lock().expect("the projects' lock is poisoned");
+        let handle = match held.remove(repo) {
+            Some(open) => open,
+            None if has_pending(&self.repos.join(repo)) => self.open(repo)?,
+            None => return Ok(()),
+        };
+        handle
             .close()
-            .map_err(|e| DecideError::Store(e.to_string()));
-        saved?;
-        closed
+            .map_err(|e| DecideError::Store(e.to_string()))
     }
 
     /// Syncs the project at `repo` (`<host>/<owner>/<name>`) with its Door43 repository, as
-    /// `session`, and closes it again. A Pankosmia clone is connected first (`origin` and
+    /// `session`, and closes it, which checkpoints it. A Pankosmia clone is connected first (`origin` and
     /// `tc.branch`, STORAGE.md §9.6), on the branch it was cloned at. `runtime` runs the sync's
     /// network calls; this call blocks until the sync ends.
     ///
@@ -145,11 +167,11 @@ impl Projects {
                 .parse()
                 .map_err(|_| bad(format!("{host} is not a Door43 server")))?,
         };
-        let _one = self
-            .one_at_a_time
-            .lock()
-            .expect("the decision lock is poisoned");
-        let handle = self.open(repo)?;
+        let mut held = self.held.lock().expect("the projects' lock is poisoned");
+        let handle = match held.remove(repo) {
+            Some(open) => open,
+            None => self.open(repo)?,
+        };
         let synced = (|| {
             if branch_of(&handle)?.is_none() {
                 let cloned_at = cloned_branch(&handle)?;
@@ -217,6 +239,12 @@ pub enum Synced {
     Done { received: bool, confirmed: bool },
     /// tC4's `SyncFailure`, as its JSON (`{"type": "beforeIntake", "value": {"type": "offline"}}`).
     Failed(rocket::serde::json::Value),
+}
+
+/// True when the project folder's pending log holds changes not sealed yet.
+fn has_pending(folder: &Path) -> bool {
+    std::fs::read_dir(folder.join(tc_store::layout::PENDING))
+        .is_ok_and(|mut entries| entries.next().is_some())
 }
 
 /// The Door43 host and repository of a Pankosmia repo path `<host>/<owner>/<name>`.
@@ -450,6 +478,18 @@ async fn decide(
         .map_err(|e| (e.status(), e.to_string()))
 }
 
+#[rocket::post("/checkpoint/<repo..>")]
+async fn checkpoint(
+    repo: PathBuf,
+    projects: &State<Arc<Projects>>,
+) -> Result<(), (Status, String)> {
+    let projects = Arc::clone(projects);
+    rocket::tokio::task::spawn_blocking(move || projects.checkpoint(&repo))
+        .await
+        .map_err(|e| (Status::InternalServerError, e.to_string()))?
+        .map_err(|e| (e.status(), e.to_string()))
+}
+
 /// Who syncs: the checker signed in on this phone (the client keeps the token, AGENTS.md).
 #[derive(Debug, Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -498,5 +538,5 @@ async fn sync(
 pub fn mount(rocket: Rocket<Build>, projects: Projects) -> Rocket<Build> {
     rocket
         .manage(Arc::new(projects))
-        .mount("/api/tc", rocket::routes![decide, sync])
+        .mount("/api/tc", rocket::routes![decide, checkpoint, sync])
 }

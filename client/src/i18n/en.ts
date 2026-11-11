@@ -58,6 +58,8 @@ export const en = {
   bookToolLoading: '{name}, loading',
 
   sync: 'Sync',
+  syncProject: 'Sync {name}',
+  syncingProject: 'Syncing {name}…',
   syncFailed: 'Not synced: {reason}',
   syncKept: 'Your teammates’ work that came in is kept.',
   syncOffline: 'there is no internet connection. Your decisions are saved on this phone.',

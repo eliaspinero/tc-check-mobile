@@ -77,6 +77,8 @@ export const keys = {
   context: (repoPath: string, book: string, rung: Rung) => `context|${repoPath}|${book}|${rung}`,
   ready: (repoPath: string) => `ready|${repoPath}`,
   projects: (host: string, username: string) => `projects||${host}|${username}`,
+  /** The repositories on this device (Pankosmia's local list). */
+  local: () => 'local||',
 };
 
 /** A project's session for one book and tool, read once per run until a change replaces it. */

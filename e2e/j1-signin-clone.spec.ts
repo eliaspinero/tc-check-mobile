@@ -40,10 +40,10 @@ test('j1: a project already on the device opens without a second clone', async (
   await placeRepo(SAMPLE_PROJECT, 'qa.door43.org/checker1/sample_burrito');
   await fakeDoor43(context, { user: USER, repos: [{ owner: 'checker1', name: 'sample_burrito', description: 'Titus' }] });
   await signIn(page);
-  await page.getByRole('button', { name: /sample_burrito/ }).click();
+  await page.getByRole('button', { name: /^sample_burrito/ }).click();
   await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
   await page.getByRole('button', { name: 'Back' }).click();
-  await page.getByRole('button', { name: /sample_burrito/ }).click();
+  await page.getByRole('button', { name: /^sample_burrito/ }).click();
   await expect(page.getByRole('heading', { name: 'Choose a book' })).toBeVisible();
   expect((await listLocal()).filter((p) => p.toLowerCase() === 'qa.door43.org/checker1/sample_burrito')).toHaveLength(1);
 });
@@ -53,7 +53,7 @@ test('j1: a repo that is not a tC4 project says so', async ({ page, context }) =
   await placeRepo(PLAIN_REPO, 'qa.door43.org/checker1/plain_repo');
   await fakeDoor43(context, { user: USER, repos: [{ owner: 'checker1', name: 'plain_repo' }] });
   await signIn(page);
-  await page.getByRole('button', { name: /plain_repo/ }).click();
+  await page.getByRole('button', { name: /^plain_repo/ }).click();
   await expect(page.getByText("This isn't a translationCore project")).toBeVisible();
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();

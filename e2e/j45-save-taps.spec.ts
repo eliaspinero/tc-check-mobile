@@ -2,7 +2,7 @@
 // does (STORAGE.md §5.4), a change of the words alone is saved 1 s after the last tap, or at once when the checker
 // leaves the check (Next, Previous, Back) or the app goes to the background; the status stays as it was.
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
-import { NEEDS_RIG, readIngredient, rigUp } from './helpers/rig';
+import { NEEDS_RIG, checkpoint, readIngredient, rigUp } from './helpers/rig';
 import { openProject } from './helpers/session';
 import { changesOf, placeTcProject } from './helpers/journal';
 
@@ -12,14 +12,16 @@ type Change = { device: string; record: { check?: { key: { checkId: string } } }
 
 let seeded: Set<string>;
 // The app's requests to the shell still running: a save of the words outlives the tap that started it, and the next
-// test's setup cannot delete a project the store or the server still has open (Windows).
+// test's setup cannot delete a project the store or the server still has open (Windows). A checkpoint is not counted:
+// one asked for as the page closes is never reported as ended, and the next setup's own checkpoint waits for it in the
+// shell (#59).
 let running = 0;
 test.beforeEach(async ({ page }) => {
   test.skip(!(await rigUp()), NEEDS_RIG);
   await placeTcProject(PROJECT);
   seeded = new Set(((await changesOf(PROJECT)) as unknown as Change[]).map((c) => c.device));
   running = 0;
-  const local = (url: string) => new URL(url).pathname.startsWith('/api/');
+  const local = (url: string) => new URL(url).pathname.startsWith('/api/') && !new URL(url).pathname.startsWith('/api/tc/checkpoint/');
   page.on('request', (r) => void (local(r.url()) && running++));
   const done = (r: { url: () => string }) => void (local(r.url()) && running--);
   page.on('requestfinished', done);
@@ -29,12 +31,16 @@ test.afterEach(async () => {
   await expect.poll(() => running, { timeout: 10_000 }).toBe(0);
 });
 
-/** The checks the phone wrote changes for. */
-const phoneCheckIds = async (): Promise<string[]> => [
-  ...new Set(
-    ((await changesOf(PROJECT)) as unknown as Change[]).filter((c) => !seeded.has(c.device) && c.record.check).map((c) => c.record.check!.key.checkId),
-  ),
-];
+/** The checks the phone wrote changes for. The project is checkpointed first, as leaving it does (#59): a change
+ * waits in the store's pending log until then. */
+const phoneCheckIds = async (): Promise<string[]> => {
+  await checkpoint(PROJECT);
+  return [
+    ...new Set(
+      ((await changesOf(PROJECT)) as unknown as Change[]).filter((c) => !seeded.has(c.device) && c.record.check).map((c) => c.record.check!.key.checkId),
+    ),
+  ];
+};
 const decisionOf = async (checkId: string): Promise<Decision | undefined> =>
   (JSON.parse(await readIngredient(PROJECT, 'checking/translationWords/TIT.json')) as { decisions: Decision[] }).decisions.find(
     (d) => d.contextId.checkId === checkId,

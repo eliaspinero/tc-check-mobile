@@ -5,11 +5,12 @@ import { t } from '../i18n';
 import TopBar from './TopBar';
 import ErrorLine from './ErrorLine';
 import Skeleton from './Skeleton';
+import SyncButton, { syncOrWhy } from './SyncButton';
 import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import { door43ErrorText } from './door43Error';
-import { isTc4xProject } from '../session/decide';
-import { formatKey, keepNow, keepProjects, keys, kept, knownFormats } from '../session/kept';
+import { checkpoint, isTc4xProject } from '../session/decide';
+import { formatKey, keep, keepNow, keepProjects, keys, kept, knownFormats } from '../session/kept';
 import { missingPins } from '../resources/installPins';
 
 type Props = {
@@ -77,7 +78,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
   const [repos, setRepos] = useState<Door43Repo[] | null>(() => kept<Door43Repo[]>(listKey) ?? null);
   // What the screen is doing besides listing: nothing, opening one project (`owner/name`), showing why the
   // list or an opening failed (over the list, which stays), or saying the opened repo is not a tC project.
-  const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'notTc' } | { state: 'tc4x' }>>(IDLE);
+  const [status, setStatus] = useState<Run<{ state: 'opening'; key: string } | { state: 'syncing'; key: string } | { state: 'notTc' } | { state: 'tc4x' }>>(IDLE);
   // Which listed projects the checker can check here (#56): in the Rust tC4's format and theirs to change. A
   // project not known yet is in neither part; one that is not is under "Other projects", closed at first.
   const [usable, setUsable] = useState<ReadonlyMap<string, boolean>>(() => {
@@ -93,6 +94,12 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
   const [listed, setListed] = useState(() => kept(listKey) !== undefined);
   // Each tap on Refresh asks Door43 again.
   const [refreshes, setRefreshes] = useState(0);
+  // The projects on this device, which a row can sync without opening them (#59): read once per run, and kept as an
+  // opening finds them.
+  const [local, setLocal] = useState<string[]>(() => kept<string[]>(keys.local()) ?? []);
+  useEffect(() => {
+    keep(keys.local(), () => source.listLocal()).then(setLocal, () => undefined);
+  }, [source]);
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
@@ -196,13 +203,15 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     waiting.current = null;
   };
   const open = async (repo: Door43Repo) => {
-    // A project opened earlier in this run with every resource on the device opens again without reading anything.
+    // A project opened earlier in this run with every resource on the device opens again without reading anything:
+    // what its screens read is kept, and leaving it checkpointed it.
     const known = kept<string>(keys.ready(`${host}/${repo.owner}/${repo.name}`));
     if (known) return onOpen(known, true);
     setStatus({ state: 'opening', key: keyOf(repo) });
     openingNow.current = true;
     try {
-      let repoPath = localPathOf(await source.listLocal(), host, repo);
+      const onDevice = await keep(keys.local(), () => source.listLocal());
+      let repoPath = localPathOf(onDevice, host, repo);
       if (!repoPath) {
         onCloning(keyOf(repo), true);
         try {
@@ -212,6 +221,10 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
           onCloning(keyOf(repo), false);
         }
       }
+      keepNow(keys.local(), onDevice.includes(repoPath) ? onDevice : [...onDevice, repoPath]);
+      // Decisions an earlier run of the app saved and did not checkpoint (it was closed first) are sealed and in the
+      // decision files before anything reads them (#59).
+      await checkpoint(repoPath, source);
       const resources = await source.readResources(repoPath);
       if (!resources) {
         setStatus({ state: 'notTc' });
@@ -233,6 +246,14 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     }
   };
   const opening = status.state === 'opening' ? status.key : null;
+  // A row's Sync (#59): one at a time, as opening.
+  const sync = async (repo: Door43Repo, repoPath: string) => {
+    setStatus({ state: 'syncing', key: keyOf(repo) });
+    const why = await syncOrWhy(repoPath, session, source);
+    setStatus(why ? { state: 'failed', message: `${repo.name}: ${why}` } : IDLE);
+  };
+  const busy = status.state === 'opening' || status.state === 'syncing';
+  const onDevice = (repo: Door43Repo) => localPathOf(local, host, repo);
   // The list in two parts (#56): the projects the checker can check here first, the others behind a control.
   const ready = repos?.filter((r) => usable.get(keyOf(r)) === true) ?? [];
   const others = repos?.filter((r) => usable.get(keyOf(r)) === false) ?? [];
@@ -272,16 +293,20 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       {!listed && status.state !== 'failed' && <Skeleton shape="projects" label={t('loadingProjects')} />}
       {listed && repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
       {ready.map((r, i) => (
-        <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
-          <span className="project-text">
-            <span className="project-name">{r.name}</span>
-            <span className="muted">
-              {r.owner}
-              {r.description ? ` · ${r.description}` : ''}
+        <div key={keyOf(r)} className="project-row enter" style={stagger(i)}>
+          <button className="row project" disabled={busy || cloning.has(keyOf(r))} onClick={() => open(r)}>
+            <span className="project-text">
+              <span className="project-name">{r.name}</span>
+              <span className="muted">
+                {r.owner}
+                {r.description ? ` · ${r.description}` : ''}
+              </span>
             </span>
-          </span>
-          <span className="muted">{opening === keyOf(r) || cloning.has(keyOf(r)) ? t('opening') : '›'}</span>
-        </button>
+            <span className="muted">{opening === keyOf(r) || cloning.has(keyOf(r)) ? t('opening') : '›'}</span>
+          </button>
+          {/* A project on this device syncs from its row, without opening it (#59). */}
+          {onDevice(r) && <SyncButton syncing={status.state === 'syncing' && status.key === keyOf(r)} disabled={busy} onSync={() => sync(r, onDevice(r)!)} project={r.name} />}
+        </div>
       ))}
       {finding > 0 && <p className="muted" data-testid="finding-projects">{t('findingProjects', { done: total - finding, total })}</p>}
       {finding === 0 && ready.length === 0 && others.length > 0 && <p className="muted">{t('noUsableProjects')}</p>}
@@ -292,7 +317,7 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       )}
       {showOthers &&
         others.map((r, i) => (
-          <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
+          <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={busy || cloning.has(keyOf(r))} onClick={() => open(r)}>
             <span className="project-text">
               <span className="project-name">{r.name}</span>
               <span className="muted">

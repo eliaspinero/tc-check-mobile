@@ -60,6 +60,11 @@ export const pankosmiaSource = (base = '/api', fetchFn: typeof fetch = fetch): P
     // The shell's own route (shell/src-tauri/src/tc.rs), not Pankosmia's: it answers an empty 200.
     syncTc: async (repoPath, as) =>
       JSON.parse(await text(`/tc/sync/${enc(repoPath)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(as) })) as TcSyncResult,
+    // The shell's own route (#59). A checkpoint cut off as the page closes loses nothing: the decisions stay in the
+    // pending log, and the next opening of the project seals them.
+    checkpoint: async (repoPath) => {
+      await text(`/tc/checkpoint/${enc(repoPath)}`, { method: 'POST' });
+    },
     // keepalive: a change saved as the app goes to the background or closes still reaches the shell.
     recordDecision: async (repoPath, decision) => {
       await text(`/tc/decide/${enc(repoPath)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(decision), keepalive: true });

@@ -24,6 +24,15 @@ It first builds this checkout's client into the shell resources (pankosmia-web d
 without a registered client). The first run builds the rig too (a few minutes). It is ready when
 `curl http://127.0.0.1:19980/api/version` names `pkg_version` `0.18.15`.
 
+A worktree that changes the shell's routes (`shell/src-tauri/src/tc.rs`) can run its own rig apart, so the other
+worktrees keep theirs and nobody's journeys replace another's projects: copy the state folder (without
+`pankosmia_repos/qa.door43.org` and `tc`), point the copy's `work/user_settings.json` at itself (`repo_dir` is
+the copy's `pankosmia_repos`, `app_resources_dir` this checkout's `shell/src-tauri/pankosmia_resources/lib/`;
+pankosmia-web reads them from there, so a copy left as it is writes into the shared folder), start the rig on the
+copy with `ROCKET_PORT` set (for example 19959),
+and run the journeys with `RIG_PORT` set to that port, `RIG_STATE` to the copy and `CLIENT_PORT` to a free port.
+Vite and the journeys' helpers then talk to it.
+
 ## Seed it
 
 With the rig running, once:
