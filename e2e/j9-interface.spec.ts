@@ -202,6 +202,8 @@ test.describe('on a phone in Spanish', () => {
     await page.getByRole('button', { name: /^sample_burrito/ }).click();
     reposOffline = true;
     await page.getByRole('banner').getByRole('button', { name: 'Atrás' }).click();
+    // Door43 is asked once per start (#44): Actualizar asks again, and finds no internet.
+    await page.getByRole('button', { name: 'Actualizar' }).click();
     await expect(page.getByRole('alert')).toHaveText('No se puede conectar con Door43. Revisa tu conexión a internet. Se muestran los proyectos de este dispositivo.');
     await expect(page.getByRole('button', { name: /^sample_burrito/ })).toBeVisible();
   });

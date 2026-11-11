@@ -1,17 +1,27 @@
-// A fake Tauri bridge for the journeys: window.__TAURI_INTERNALS__.invoke answers the shell's three
-// token commands from a store that lives in the test process, so a kept token survives a reload,
-// as it survives an app restart on the phone. It also stands for Android's Back (#58): the app plugin's
+// A fake Tauri bridge for the journeys: window.__TAURI_INTERNALS__.invoke answers the shell's commands from a
+// store that lives in the test process, so what is kept survives a reload, as it survives an app restart on the
+// phone: the token (token_*) and the kept results (kept_*, #44). It also stands for Android's Back (#58): the app plugin's
 // `back-button` listeners are kept in the page, and pressBack sends them the event as the shell does. It also
 // records each URL given to the opener plugin (#61).
 import type { BrowserContext, Page } from '@playwright/test';
 
-export const fakeTauri = async (context: BrowserContext): Promise<{ token: () => string | null; opened: () => string[] }> => {
+export interface FakeTauri {
+  token: () => string | null;
+  opened: () => string[];
+  /** The kept results by name, as the shell keeps them in its `kept` folder: a journey can read or damage one. */
+  kept: Map<string, string>;
+}
+
+export const fakeTauri = async (context: BrowserContext): Promise<FakeTauri> => {
   let token: string | null = null;
   const opened: string[] = [];
-  await context.exposeFunction('__fakeTauriInvoke', (cmd: string, args?: { token?: string; url?: string }) => {
+  const kept = new Map<string, string>();
+  await context.exposeFunction('__fakeTauriInvoke', (cmd: string, args?: { token?: string; url?: string; name?: string; value?: string }) => {
     if (cmd === 'token_keep') token = args?.token ?? null;
     else if (cmd === 'token_forget') token = null;
     else if (cmd === 'token_read') return token;
+    else if (cmd === 'kept_write') kept.set(args!.name!, args!.value!);
+    else if (cmd === 'kept_read') return kept.get(args!.name!) ?? null;
     else if (cmd === 'plugin:opener|open_url') opened.push(args?.url ?? '');
     else throw new Error(`fake Tauri has no command ${cmd}`);
     return null;
@@ -48,7 +58,7 @@ export const fakeTauri = async (context: BrowserContext): Promise<{ token: () =>
       },
     };
   });
-  return { token: () => token, opened: () => [...opened] };
+  return { token: () => token, opened: () => [...opened], kept };
 };
 
 /** How many `back-button` listeners the page has. With none, Android's Back does the shell's default: on the client's

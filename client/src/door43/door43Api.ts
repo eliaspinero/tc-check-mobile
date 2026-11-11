@@ -30,6 +30,9 @@ export class Door43ApiError extends Error {
   }
 }
 
+/** True when Door43 refused the token (401 or 403): only this signs the checker out. */
+export const isRefused = (e: unknown): boolean => e instanceof Door43ApiError && (e.status === 401 || e.status === 403);
+
 const messageOf = (text: string): string => {
   try {
     const parsed = JSON.parse(text) as { message?: unknown };

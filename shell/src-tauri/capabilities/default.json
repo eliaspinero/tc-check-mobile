@@ -24,7 +24,9 @@
     "allow-wait-for-server",
     "allow-token-keep",
     "allow-token-read",
-    "allow-token-forget"
+    "allow-token-forget",
+    "allow-kept-read",
+    "allow-kept-write"
   ],
   "remote": {
     "urls": [

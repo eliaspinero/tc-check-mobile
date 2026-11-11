@@ -36,6 +36,8 @@ const COMMANDS: &[&str] = &[
     "token_keep",
     "token_read",
     "token_forget",
+    "kept_read",
+    "kept_write",
 ];
 
 /// The command names inside `generate_handler![...]` in `src/lib.rs`, without their module path.

@@ -25,6 +25,7 @@ export const es: Strings = {
   opening: 'Abriendo…',
   signOut: 'Salir',
   signOutConfirm: 'Toca otra vez para salir',
+  refresh: 'Actualizar',
   tc4xTitle: 'Primero hay que pasar este proyecto',
   tc4xBody: 'Este proyecto sigue en el formato de translationCore 4. Pasa el equipo al nuevo translationCore en una computadora y luego ábrelo aquí.',
   notProjectTitle: 'No es un proyecto',

@@ -23,6 +23,7 @@ export const en = {
   opening: 'Opening…',
   signOut: 'Sign out',
   signOutConfirm: 'Tap again to sign out',
+  refresh: 'Refresh',
   notProjectTitle: 'Not a project',
   tc4xTitle: 'Move this project first',
   tc4xBody: 'This project is still in translationCore 4’s format. Move the team to the new translationCore on a computer, then open it here.',

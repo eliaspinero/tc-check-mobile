@@ -3,7 +3,7 @@ import { openExternal } from '../device/tauri';
 import type { CheckingEngine, Tool } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { scopeOf, type Session } from '../session/loadSession';
-import { keep, kept, keptFailed, keys, sessionOf } from '../session/kept';
+import { keep, kept, keptFailed, keptProgress, keys, sessionOf } from '../session/kept';
 import { t } from '../i18n';
 import { bookName, toolName } from '../i18n/books';
 import TopBar from './TopBar';
@@ -109,7 +109,8 @@ export default function BookPicker({ repoPath, source, engine, onPick, onBack }:
           <span className="book-tools">
             {TOOLS.map((tool) => {
               const key = `${book} ${tool}`;
-              const counts = progress[key];
+              // Until this run counts it, the progress counted last, also before the app restarted.
+              const counts = progress[key] !== undefined ? progress[key] : keptProgress(repoPath, book, tool);
               const name = `${bookName(book)} ${toolName(tool)}`;
               // The label replaces the button's content for a screen reader, so it says the progress too.
               const label =

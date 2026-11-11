@@ -216,7 +216,10 @@ test('j44 review: a Door43 list that arrives while a project opens does not move
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.locator('main.screen:not(.leaving *) .project-name')).toHaveText(['sample_burrito', 'other_tc']);
   await page.getByRole('button', { name: /^other_tc/ }).click();
-  // While it opens, a teammate's new project arrives first in Door43's list.
+  // While it opens, the checker taps Refresh (Door43 is asked once per start, #44 44b), and a teammate's new
+  // project arrives first in Door43's list. The opening goes on: the other rows stay disabled.
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(page.getByRole('button', { name: /^sample_burrito/ })).toBeDisabled();
   repos.unshift({ owner: USER.username, name: 'aaa_new' });
   answer();
   await page.waitForTimeout(500);

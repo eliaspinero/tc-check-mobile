@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Door43Api, Door43Repo, Door43Session } from '../door43/door43Api';
+import { isRefused, type Door43Api, type Door43Repo, type Door43Session } from '../door43/door43Api';
 import type { ProjectSource } from '../project/ProjectSource';
 import { t } from '../i18n';
 import TopBar from './TopBar';
@@ -9,7 +9,7 @@ import { stagger } from './stagger';
 import { IDLE, failure, type Run } from './load';
 import { door43ErrorText } from './door43Error';
 import { isTc4xProject } from '../session/decide';
-import { keepNow, keys, kept } from '../session/kept';
+import { formatKey, keepNow, keepProjects, keys, kept, knownFormats } from '../session/kept';
 import { missingPins } from '../resources/installPins';
 
 type Props = {
@@ -35,10 +35,22 @@ const localPathOf = (local: string[], host: string, repo: Door43Repo): string | 
 /** A project's key in the opening and cloning states: `owner/name`. */
 const keyOf = (repo: Door43Repo): string => `${repo.owner}/${repo.name}`;
 
-/** Whether each repository is in the Rust tC4's format, asked of Door43 once per run (#56). */
+/** Whether each repository is in the Rust tC4's format, asked of Door43 once per run (#56), unless the answer was kept
+ * from an earlier run (`knownFormats`, session/kept.ts). */
 const tcFormats = new Map<string, Promise<boolean>>();
-/** The answers that have landed, by `host/owner/name`, so a list shown again sorts at once. */
-const knownFormats = new Map<string, boolean>();
+/** Door43's list for each checker (`keys.projects`), asked once per start and again on Refresh (#44), and shared by
+ * every visit of the screen. A failed ask is dropped, so the next visit asks again. */
+const asks = new Map<string, Promise<Door43Repo[]>>();
+const askDoor43 = (api: Door43Api, session: Door43Session, host: string): Promise<Door43Repo[]> => {
+  const listKey = keys.projects(host, session.username);
+  const ask = api.listRepos(session).then((list) => {
+    keepProjects(host, session.username, list);
+    return list;
+  });
+  asks.set(listKey, ask);
+  ask.catch(() => asks.get(listKey) === ask && asks.delete(listKey));
+  return ask;
+};
 /** How many repositories are asked about at once. */
 const AT_ONCE = 6;
 
@@ -77,10 +89,27 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
     return known;
   });
   const [showOthers, setShowOthers] = useState(false);
+  // True once there is a list to show for the checker: kept, or Door43's answer (or its failure) landed.
+  const [listed, setListed] = useState(() => kept(listKey) !== undefined);
+  // Each tap on Refresh asks Door43 again.
+  const [refreshes, setRefreshes] = useState(0);
 
   // When Door43 can't be reached, the projects already on this device are still listed and open offline.
   useEffect(() => {
     let current = true;
+    /** The projects on this device from this Door43 host, as rows: all of them, unasked. */
+    const onDevice = async (): Promise<Door43Repo[]> => {
+      const prefix = `${host}/`.toLowerCase();
+      const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
+      return local.map((p) => {
+        const [owner, name] = p.slice(prefix.length).split('/');
+        return { owner, name, description: '', canPush: null };
+      });
+    };
+    const showOnDevice = (list: Door43Repo[]) => {
+      setRepos(list);
+      setUsable(new Map(list.map((r) => [keyOf(r), true])));
+    };
     // Door43 is asked about each repository the checker may change, a few at a time; the rest need no question.
     // A question that fails leaves the project shown: nothing is hidden for want of an answer. Answers add to
     // what is known, so rows already on screen keep their place while a new list is sorted.
@@ -91,51 +120,72 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
       const worker = async () => {
         while (current && next < asked.length) {
           const repo = asked[next++];
-          const key = `${host}/${keyOf(repo)}`;
-          if (!tcFormats.has(key))
+          const key = formatKey(host, repo);
+          // An answer kept from an earlier start sorts the row at once (the screen's first state); Door43 is still
+          // asked once per run, as a project may have moved to the new format since. Each answer is kept as it lands,
+          // so the next start sorts the list at once even if the checker left this screen meanwhile.
+          if (!tcFormats.has(key)) {
+            const known = knownFormats.get(key);
             tcFormats.set(
               key,
               api.isTcProject(session, repo).then(
-                (isTc) => {
-                  knownFormats.set(key, isTc);
-                  return isTc;
+                (answer) => {
+                  knownFormats.set(key, answer);
+                  keepProjects(host, session.username);
+                  return answer;
                 },
-                () => true,
+                () => known ?? true,
               ),
             );
+          }
           const isTc = await tcFormats.get(key)!;
           if (current) setUsable((old) => new Map(old).set(keyOf(repo), isTc));
         }
       };
       void Promise.all(Array.from({ length: AT_ONCE }, worker));
     };
+    const keptList = kept<Door43Repo[]>(listKey);
+    let landed = false;
+    // The kept list shows at once; with nothing kept, the projects on this device show while Door43's list loads.
+    if (keptList) sort(keptList);
+    const local = keptList ? null : onDevice();
+    void local?.then((list) => current && !landed && showOnDevice(list));
     // Door43's answer replaces the list, but not under a tap: while a project opens, it waits for the opening to end.
-    api.listRepos(session).then(
+    (asks.get(listKey) ?? askDoor43(api, session, host)).then(
       (list) => {
-        keepNow(listKey, list);
+        if (!current) return;
+        landed = true;
         sort(list);
+        setListed(true);
         if (openingNow.current) waiting.current = list;
         else setRepos(list);
       },
       async (e: unknown) => {
+        if (!current) return;
+        landed = true;
+        // Door43 refusing the token signs the checker out: a kept list does not stay on screen for them.
+        if (isRefused(e)) return onSignOut();
         setStatus({ state: 'failed', message: t('offlineProjects', { error: door43ErrorText(e) }) });
-        // A list kept from earlier in this run stays.
-        if (kept(listKey)) return;
-        const prefix = `${host}/`.toLowerCase();
-        const local = (await source.listLocal()).filter((p) => p.toLowerCase().startsWith(prefix));
-        const list = local.map((p) => {
-          const [owner, name] = p.slice(prefix.length).split('/');
-          return { owner, name, description: '', canPush: null };
-        });
+        setListed(true);
+        // A kept list stays.
+        if (keptList) return;
         // Offline, the projects on this device show as they did: all of them, unasked.
-        setRepos(list);
-        setUsable(new Map(list.map((r) => [keyOf(r), true])));
+        showOnDevice(await (local ?? onDevice()));
       },
     );
     return () => {
       current = false;
     };
-  }, [api, session, source, host, listKey]);
+  }, [api, session, source, host, listKey, refreshes]);
+
+  /** Asks Door43 again for the list, and whether each repository is in the new format: one may have moved to it. */
+  const refresh = () => {
+    for (const r of kept<Door43Repo[]>(listKey) ?? []) tcFormats.delete(formatKey(host, r));
+    void askDoor43(api, session, host);
+    // It clears a failure's line; a project opening goes on opening.
+    setStatus((s) => (s.state === 'failed' ? IDLE : s));
+    setRefreshes((n) => n + 1);
+  };
 
   // Opening clears the offline notice, as any earlier failure: what shows next is about this project.
   const openingNow = useRef(false);
@@ -207,10 +257,20 @@ export default function ProjectList({ api, source, session, host, onOpen, onSign
 
   return (
     <main className="screen">
-      <TopBar brand title={t('projectsTitle')} sub={session.username || undefined} actions={<SignOut onSignOut={onSignOut} />} />
+      <TopBar
+        brand
+        title={t('projectsTitle')}
+        sub={session.username || undefined}
+        actions={
+          <>
+            <button onClick={refresh}>{t('refresh')}</button>
+            <SignOut onSignOut={onSignOut} />
+          </>
+        }
+      />
       <ErrorLine text={failure(status)} />
-      {repos === null && status.state !== 'failed' && <Skeleton shape="projects" label={t('loadingProjects')} />}
-      {repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
+      {!listed && status.state !== 'failed' && <Skeleton shape="projects" label={t('loadingProjects')} />}
+      {listed && repos?.length === 0 && <p className="muted">{t('noRepos')}</p>}
       {ready.map((r, i) => (
         <button key={keyOf(r)} className="row project enter" style={stagger(i)} disabled={opening !== null || cloning.has(keyOf(r))} onClick={() => open(r)}>
           <span className="project-text">

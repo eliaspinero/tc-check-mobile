@@ -93,9 +93,12 @@ const openList = async (page: Page, context: BrowserContext) => {
 
 test.describe('skeletons', () => {
   test('j30: restoring a kept sign-in shows a skeleton that says it is signing in', async ({ page, context }) => {
-    await fakeTauri(context);
+    const tauri = await fakeTauri(context);
     await signIn(page, context);
     await expect(page.getByRole('heading', { name: 'Your projects' })).toBeVisible();
+    // With no username kept (a phone updated from a build before #44), the restore waits for Door43 to say whose token it is.
+    await expect.poll(() => tauri.kept.has('session')).toBe(true);
+    tauri.kept.delete('session');
     const open = await hold(page, (u) => u === `${QA_SERVER}/api/v1/user`);
     await page.reload();
     await expectSkeleton(page, 'Signing you in…');
