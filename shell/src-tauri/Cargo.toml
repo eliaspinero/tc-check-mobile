@@ -48,6 +48,12 @@ tauri-plugin-http = "2"
 tauri-plugin-log = "2"
 reqwest = { version = "0.13.4", features = ["json"] }
 
+# Android: reqwest checks certificates with rustls-platform-verifier, which must be handed the app's Context first
+# (src/tls.rs). The versions are the ones reqwest already pulls in.
+[target.'cfg(target_os = "android")'.dependencies]
+rustls-platform-verifier = "0.7"
+jni = "0.22"
+
 
 # machine-uid 0.6.0 has no Android branch (vendor/machine-uid/PROVENANCE.md).
 [patch.crates-io]
