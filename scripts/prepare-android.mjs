@@ -60,7 +60,7 @@ if (!verifier) {
   console.error('prepare-android: cargo metadata has no rustls-platform-verifier-android');
   process.exit(1);
 }
-const maven = path.join(path.dirname(verifier.manifest_path), 'maven').replaceAll('\', '/');
+const maven = path.join(path.dirname(verifier.manifest_path), 'maven').replaceAll('\\', '/');
 const gradle = path.join(app, '../../build.gradle.kts');
 const marker = '// rustls-platform-verifier (prepare-android.mjs)';
 const gradleText = fs.readFileSync(gradle, 'utf8');
