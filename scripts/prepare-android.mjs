@@ -48,6 +48,8 @@ console.log('prepare-android: MainActivity replaced (shell/android/MainActivity.
 
 // Sync's HTTPS checks Door43's certificate with rustls-platform-verifier, whose Android half is a small Kotlin library
 // shipped inside the crate as a Maven folder (shell/src-tauri/src/tls.rs). Cargo knows where the crate is on disk.
+// The folder has no version list Gradle can read, so the library is asked for at the crate's own version (its pom
+// says it is an aar).
 const metadata = JSON.parse(
   execFileSync(
     'cargo',
@@ -67,7 +69,7 @@ const gradleText = fs.readFileSync(gradle, 'utf8');
 if (!gradleText.includes(marker)) {
   fs.writeFileSync(
     gradle,
-    `${gradleText}\n${marker}\nrepositories {\n    maven {\n        url = uri("${maven}")\n        metadataSources { artifact() }\n    }\n}\ndependencies {\n    implementation("rustls:rustls-platform-verifier:latest.release")\n}\n`,
+    `${gradleText}\n${marker}\nrepositories {\n    maven { url = uri("${maven}") }\n}\ndependencies {\n    implementation("rustls:rustls-platform-verifier:${verifier.version}")\n}\n`,
   );
 }
 // The release build shrinks code with R8, which cannot see calls from Rust through JNI: keep the verifier's classes.
