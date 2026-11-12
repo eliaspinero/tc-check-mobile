@@ -3,6 +3,8 @@
 // It copies shell/android/network_security_config.xml into the app's res/xml and points the manifest at it.
 // It also copies the launcher icons (`tauri icon shell/app-icon.svg` writes them to src-tauri/icons/android),
 // because init writes Tauri's default icons, and replaces the MainActivity (shell/android/MainActivity.kt).
+// Last, it adds rustls-platform-verifier's Android library to the Gradle build (Sync's HTTPS, shell/src-tauri/src/tls.rs).
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -43,3 +45,36 @@ if (!fs.existsSync(activity)) {
 }
 fs.copyFileSync(path.join(root, 'shell/android/MainActivity.kt'), activity);
 console.log('prepare-android: MainActivity replaced (shell/android/MainActivity.kt)');
+
+// Sync's HTTPS checks Door43's certificate with rustls-platform-verifier, whose Android half is a small Kotlin library
+// shipped inside the crate as a Maven folder (shell/src-tauri/src/tls.rs). Cargo knows where the crate is on disk.
+// The folder has no version list Gradle can read, so the library is asked for at the crate's own version (its pom
+// says it is an aar).
+const metadata = JSON.parse(
+  execFileSync(
+    'cargo',
+    ['metadata', '--format-version', '1', '--filter-platform', 'aarch64-linux-android', '--manifest-path', path.join(root, 'shell/src-tauri/Cargo.toml')],
+    { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 },
+  ),
+);
+const verifier = metadata.packages.find((p) => p.name === 'rustls-platform-verifier-android');
+if (!verifier) {
+  console.error('prepare-android: cargo metadata has no rustls-platform-verifier-android');
+  process.exit(1);
+}
+const maven = path.join(path.dirname(verifier.manifest_path), 'maven').replaceAll('\\', '/');
+const gradle = path.join(app, '../../build.gradle.kts');
+const marker = '// rustls-platform-verifier (prepare-android.mjs)';
+const gradleText = fs.readFileSync(gradle, 'utf8');
+if (!gradleText.includes(marker)) {
+  fs.writeFileSync(
+    gradle,
+    `${gradleText}\n${marker}\nrepositories {\n    maven { url = uri("${maven}") }\n}\ndependencies {\n    implementation("rustls:rustls-platform-verifier:${verifier.version}")\n}\n`,
+  );
+}
+// The release build shrinks code with R8, which cannot see calls from Rust through JNI: keep the verifier's classes.
+const proguard = path.join(app, '../../proguard-rules.pro');
+const keep = '-keep, includedescriptorclasses class org.rustls.platformverifier.** { *; }';
+const rules = fs.existsSync(proguard) ? fs.readFileSync(proguard, 'utf8') : '';
+if (!rules.includes(keep)) fs.writeFileSync(proguard, `${rules}\n${keep}\n`);
+console.log(`prepare-android: rustls-platform-verifier's Android library added (${maven})`);

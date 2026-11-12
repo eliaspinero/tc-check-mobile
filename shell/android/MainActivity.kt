@@ -3,8 +3,10 @@
 // does for every app anyway. The WebView may then report 0 for env(safe-area-inset-*) (WebView 124 does), so this activity
 // tells the page how tall the bars are: window.tcSystemBars.insets() returns them in CSS pixels (dp), and a
 // `tc-system-bars` event says they changed. client/src/systemBars.ts reads them.
+// It also hands the Rust side the app's Context for Sync's HTTPS (initTlsVerifier, shell/src-tauri/src/tls.rs).
 package org.unfoldingword.tccheck
 
+import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
 import android.webkit.JavascriptInterface
@@ -17,7 +19,12 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    // Before any request: rustls-platform-verifier checks Door43's certificate with Android's verifier, through this
+    // Context. Without it Sync's request panics.
+    initTlsVerifier(applicationContext)
   }
+
+  private external fun initTlsVerifier(context: Context)
 
   // The manifest keeps the activity when the theme changes (configChanges has uiMode), so enableEdgeToEdge() runs again to
   // give the bars' icons the new theme's colour: dark on the light theme, light on the dark one.

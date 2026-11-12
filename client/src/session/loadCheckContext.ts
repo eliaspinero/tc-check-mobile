@@ -1,18 +1,18 @@
 // What the check screen reads once per (project, book): the source panes, the target book,
 // the target's text direction, and where the tW articles live.
-import type { CheckingEngine, DerivedBook, ResourcesFile } from '../engine/CheckingEngine';
+import type { CheckingEngine, ParsedBook, ResourcesFile } from '../engine/CheckingEngine';
 import type { ProjectSource } from '../project/ProjectSource';
 import { installedPathOf } from '../resources/installPins';
 
 export interface Pane {
   /** ULT, UST, or the pin's id in upper case. */
   label: string;
-  book: DerivedBook | null;
+  book: ParsedBook | null;
 }
 
 export interface CheckContext {
   panes: Pane[];
-  target: DerivedBook;
+  target: ParsedBook;
   dir: 'ltr' | 'rtl';
   /** The installed tw resource of the rung that resolved the list (tW only). */
   twPath: string | null;

@@ -5,7 +5,34 @@ import { selectionsFromTokens, targetWords, tokenIndicesFromSelections } from '.
 import { withSpanMembers } from '../checking/spanMembers';
 import { resolveProjectFrame } from '../checking/projectFrame';
 import { renderArticleBlocks } from '../checking/markdown';
-import type { CheckingEngine } from './CheckingEngine';
+import type { CheckingEngine, DerivedVerse, ParsedBook } from './CheckingEngine';
+
+/**
+ * A book parsed one chapter at a time (#60): a check reads one verse of each source and of the target, and a book
+ * like Acts takes most of a second to parse whole on a desktop, and longer on a phone. The USFM is cut at each `\c`
+ * once; a chapter is parsed with the book's headers the first time one of its verses is asked for, and kept.
+ */
+const parseByChapter = (usfm: string): ParsedBook => {
+  // A chapter starts at any `\c N`, also mid-line, and `\c 01` is chapter 1, as usfm-js reads them (j60 holds the two
+  // parses equal on whole books and on those forms).
+  const starts = [...usfm.matchAll(/\\c\s+(\d+)/g)];
+  const head = usfm.slice(0, starts[0]?.index ?? usfm.length);
+  const text = new Map(starts.map((m, i) => [String(Number(m[1])), usfm.slice(m.index, starts[i + 1]?.index ?? usfm.length)]));
+  const parsed = new Map<string, Record<string, DerivedVerse>>();
+  return {
+    verse: (chapter, verse) => {
+      let verses = parsed.get(chapter);
+      if (!verses) {
+        const block = text.get(chapter);
+        // A verse inside a bridge (`\v 1-2`) reads the bridge's text, as tC4's check screen does.
+        verses = block ? (withSpanMembers(deriveTargetBible(head + block)).chapters[chapter] ?? {}) : {};
+        parsed.set(chapter, verses);
+        text.delete(chapter);
+      }
+      return verses[verse];
+    },
+  };
+};
 
 export const tsEngine: CheckingEngine = {
   patch: (button, verseText, tapped) => {
@@ -44,8 +71,7 @@ export const tsEngine: CheckingEngine = {
   },
   progress: (items) => progressOf(items),
   twArticles: (meta) => twArticlesOf(meta),
-  // A verse inside a bridge ( 1-2) reads the bridge's text, as tC4's check screen does.
-  parseBook: (usfm) => withSpanMembers(deriveTargetBible(usfm)),
+  parseBook: parseByChapter,
   verseText: (verse) => tokenizeVerse(verse).map((t) => t.text).join('').trim(),
   sourceTokens: (verse, quote, occurrence) => {
     const tokens = tokenizeVerse(verse);

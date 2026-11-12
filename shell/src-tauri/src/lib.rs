@@ -3,6 +3,8 @@ mod limits;
 mod ping;
 mod tc;
 mod token;
+#[cfg(target_os = "android")]
+mod tls;
 use git2::opts::set_ssl_cert_file;
 use include_dir::{include_dir, Dir};
 use pankosmia_web;
